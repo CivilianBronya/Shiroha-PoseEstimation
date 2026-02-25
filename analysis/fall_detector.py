@@ -44,7 +44,7 @@ class FallDetector:
         self.prev_time = None
         self.prev_vy = 0  # 上次计算出的 "虚拟速度"
 
-        # 新增：存储最后一次计算的特征
+        # 存储最后一次计算的特征
         self.last_features = {"vy": 0, "tilt": 0, "support": 1}
 
     def _calculate_features_from_solver_output(self, skeleton):
@@ -57,7 +57,8 @@ class FallDetector:
             self.last_features = features  # 更新存储的特征
             return features
 
-        # --- 1. 计算 Tilt (使用 body_yaw) ---
+        # 计算 Tilt (使用 body_yaw)
+        # TODO： Tilt需要优化，对于摔倒与站起的检测有跳动，未摔倒的检测非常容易判别为摔倒
         body_yaw = skeleton.get('body_yaw')
         if body_yaw is not None:
             features["tilt"] = abs(body_yaw)
@@ -65,7 +66,7 @@ class FallDetector:
             self.last_features = features  # 更新存储的特征
             return features
 
-        # --- 2. 计算 Vy (基于 body_yaw 的变化率) ---
+        # 计算 Vy (基于 body_yaw 的变化率
         current_body_yaw = body_yaw
         current_time = time.time()
 
@@ -85,7 +86,7 @@ class FallDetector:
         self.prev_body_yaw = current_body_yaw
         self.prev_time = current_time
 
-        # --- 3. 计算 Support (基于 body_yaw) ---
+        # 计算 Support (基于 body_yaw)
         if abs(features["tilt"]) > 80:
             features["support"] = 0.1
         elif abs(features["tilt"]) > 45:
@@ -118,7 +119,7 @@ class FallDetector:
         support = features.get("support", 1)
         now = time.time()
 
-        # --- 新增逻辑：检查是否在报警持续时间内 ---
+        # 新增逻辑：检查是否在报警持续时间内
         # 如果已经确认摔倒，并且还在持续时间内，直接返回 True
         if self.fall_confirmed_at is not None:
             if now - self.fall_confirmed_at < self.alarm_hold_duration:
@@ -132,7 +133,7 @@ class FallDetector:
                 self.ground_start_time = None
                 # print("Alarm hold duration passed, reset all states.") # Debug
 
-        # --- 原有的状态机逻辑 ---
+        # 原有的状态机逻辑
         # STAND
         if self.state == self.STAND:
             if support < self.support_unbalance_threshold and tilt > self.tilt_unbalance_threshold:

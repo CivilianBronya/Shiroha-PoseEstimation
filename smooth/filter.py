@@ -64,7 +64,6 @@ class LowPassFilter:
         # new_filtered = alpha * prev + (1-alpha) * (prev + delta_angle)
         # new_filtered = alpha * prev + (1-alpha) * prev + (1-alpha) * delta_angle
         # new_filtered = prev + (1-alpha) * delta_angle
-
         filtered_value = self.prev + (1 - self.alpha) * delta_angle
 
         # 将滤波后的角度重新映射回 [-angle_range, angle_range] 范围内
