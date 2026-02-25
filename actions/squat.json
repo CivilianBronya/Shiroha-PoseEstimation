@@ -1,0 +1,31 @@
+
+{
+  "name": "barbell_squat",
+
+  "stages": {
+    "down": {
+      "knee_angle": [70, 110],
+      "hip_angle": [60, 120],
+      "torso_tilt": [10, 45],
+      "speed": [5, 60]
+    },
+
+    "bottom": {
+      "knee_angle": [60, 90],
+      "hip_angle": [50, 80],
+      "hold": 0.2
+    },
+
+    "up": {
+      "knee_angle": [120, 180],
+      "speed": [5, 80]
+    }
+  },
+
+  "feedback": {
+    "knee_forward": "膝盖不要超过脚尖",
+    "not_deep_enough": "可以再蹲低一点",
+    "too_fast": "慢一点，控制节奏",
+    "lean_forward": "背有点弯了，挺胸"
+  }
+}
