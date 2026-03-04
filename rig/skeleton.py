@@ -72,7 +72,7 @@ class SkeletonSolver:
         self._previous_raw_angle_rad = raw_yaw_rad
 
         unwrapped_deg = math.degrees(self._unwrapped_angle_rad)
-        print(f"SkeletonSolver Internal - Unwrapped body_yaw: {unwrapped_deg:.3f}")
+        # print(f"SkeletonSolver Internal - Unwrapped body_yaw: {unwrapped_deg:.3f}")
 
         # 将解缠绕后的弧度送入滤波器
         filtered_unwrapped_rad = self._yaw_filter.apply(self._unwrapped_angle_rad)
@@ -90,8 +90,7 @@ class SkeletonSolver:
         # 将平滑后的角度存入 sk 字典
         sk["body_yaw"] = final_yaw_deg
 
-        # 添加这一行进行调试
-        print(f"SkeletonSolver Output - Smoothed body_yaw: {final_yaw_deg:.3f}")
+        # print(f"SkeletonSolver Output - Smoothed body_yaw: {final_yaw_deg:.3f}")
 
         sk["head"] = head
         return sk
