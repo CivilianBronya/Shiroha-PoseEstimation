@@ -1,4 +1,3 @@
-# analysis/fall_detector.py
 import time
 import cv2
 import math
@@ -119,7 +118,6 @@ class FallDetector:
         support = features.get("support", 1)
         now = time.time()
 
-        # 新增逻辑：检查是否在报警持续时间内
         # 如果已经确认摔倒，并且还在持续时间内，直接返回 True
         if self.fall_confirmed_at is not None:
             if now - self.fall_confirmed_at < self.alarm_hold_duration:
@@ -133,7 +131,6 @@ class FallDetector:
                 self.ground_start_time = None
                 # print("Alarm hold duration passed, reset all states.") # Debug
 
-        # 原有的状态机逻辑
         # STAND
         if self.state == self.STAND:
             if support < self.support_unbalance_threshold and tilt > self.tilt_unbalance_threshold:
@@ -160,8 +157,7 @@ class FallDetector:
                     if not self.fall_confirmed:
                         self.fall_confirmed = True
                         self.fall_confirmed_at = now  # 记录确认时间
-                        print(
-                            f"[{now}] FALL CONFIRMED after {elapsed_time:.2f}s on ground! Will hold for {self.alarm_hold_duration}s.")
+                        # print(f"[{now}] FALL CONFIRMED after {elapsed_time:.2f}s on ground! Will hold for {self.alarm_hold_duration}s.")
                     # return True # 不立即返回，让外部逻辑检查 alarm_hold_duration
 
                 # 条件2: 即使时间未到，如果仍然高度倾斜且速度缓慢，也确认
@@ -169,12 +165,10 @@ class FallDetector:
                     if not self.fall_confirmed:
                         self.fall_confirmed = True
                         self.fall_confirmed_at = now  # 记录确认时间
-                        print(
-                            f"[{now}] FALL CONFIRMED due to sustained flat posture! Will hold for {self.alarm_hold_duration}s.")
+                        # print(f"[{now}] FALL CONFIRMED due to sustained flat posture! Will hold for {self.alarm_hold_duration}s.")
                     # return True # 不立即返回，让外部逻辑检查 alarm_hold_duration
 
             # 条件3: 如果倾斜角减小（身体开始直立），回到STAND
-            # 注意：这个条件现在不会影响已经确认的摔倒
             if tilt < self.tilt_stand_threshold:
                 self.state = self.STAND
                 self.ground_start_time = None
@@ -184,7 +178,6 @@ class FallDetector:
                     self.fall_confirmed = False
 
         # 最终返回值判断
-        # 如果当前正在报警持续时间内，返回 True
         if self.fall_confirmed_at is not None and (now - self.fall_confirmed_at < self.alarm_hold_duration):
             return True
 
