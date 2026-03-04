@@ -19,9 +19,6 @@ class Camera:
         if not ret:
             return None
 
-        # 镜像（符合人体直觉）
-        frame = cv2.flip(frame, 1)
-
         # 计算帧时间（后面滤波/速度会用）
         now = time.time()
         self.dt = now - self.last
