@@ -1,6 +1,5 @@
 import cv2
 import numpy as np
-
 from .single_stickman_renderer import SingleStickmanRenderer
 
 
@@ -16,7 +15,7 @@ class MultiStickmanRenderer:
 
     def draw(self, frame, multi_body_data):
         """
-        绘制多个人的骨架、外接框、ID标签和瞄准线。
+        绘制多个人的骨架、外接框、ID标签和连接线。
 
         Args:
             frame: 输入图像帧
@@ -30,8 +29,6 @@ class MultiStickmanRenderer:
 
         overlay = frame.copy()
         alpha = 0.8
-
-        center_x, center_y = frame.shape[1] // 2, frame.shape[0] // 2
 
         for i, body_pts_list in enumerate(multi_body_data):
             if body_pts_list is None or len(body_pts_list) == 0:
@@ -67,6 +64,7 @@ class MultiStickmanRenderer:
             cv2.putText(frame, id_text, (bg_top_left[0] + 2, bg_top_left[1] + text_height + 2),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.5, self.id_text_color, 1)
 
+            # 添加从ID标签中心到框的连接线
             text_center_x = label_pos[0] + text_width // 2
             text_center_y = label_pos[1] + text_height // 2
             cv2.line(frame, (text_center_x, text_center_y), box[0], self.aim_line_color, 1, cv2.LINE_AA)
