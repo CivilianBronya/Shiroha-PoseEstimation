@@ -12,7 +12,6 @@ class FallDetectorRenderer:
         self.font_scale = 0.6
         self.thickness = 1
         self.text_color = (255, 255, 255)  # 白色文字
-        self.bg_color = (0, 0, 0)          # 黑色背景
         self.line_type = cv2.LINE_AA
 
     def draw(self, frame, skeleton):
@@ -43,29 +42,24 @@ class FallDetectorRenderer:
         vy_val = current_features.get('vy', 0)
         support_val = current_features.get('support', 1)
 
+        risk_score = self.fall_detector.get_fall_risk_score()
+        # TODO:将数据展示改为阈值，True与False将由前端做
         info_texts = [
             f"STATE: {state_name}",
             f"TILT: {tilt_val:.1f}°",
             f"VY: {vy_val:.2f} deg/s",
             f"SUPPORT: {support_val:.2f}",
-            f"FALL: {'TRUE' if is_falling else 'FALSE'}",
-            f"ALARM: {'TRUE' if is_falling else 'FALSE'}"
+            # f"FALL: {'TRUE' if is_falling else 'FALSE'}",
+            # f"ALARM: {'TRUE' if is_falling else 'FALSE'}"
+            f"SCORE: {risk_score:.2f}"
         ]
 
         x_offset = 10
         y_start_offset = 30
-        (text_w, text_h), _ = cv2.getTextSize(info_texts[0], self.font, self.font_scale, self.thickness)
-
-        num_lines = len(info_texts)
-        rect_top_left = (x_offset - 5, y_start_offset - (text_h + 5))
-        rect_bottom_right = (x_offset + 220, y_start_offset + (text_h + 5) * num_lines)
-        cv2.rectangle(dbg, rect_top_left, rect_bottom_right, self.bg_color, -1, self.line_type)
 
         for i, text in enumerate(info_texts):
-            y_offset = y_start_offset + i * (text_h + 5)
-            color_to_use = self.text_color
-            if text.startswith("FALL:") or text.startswith("ALARM:"):
-                color_to_use = (0, 0, 255) if is_falling else (0, 255, 0)
-            cv2.putText(dbg, text, (x_offset, y_offset), self.font, self.font_scale, color_to_use, self.thickness, self.line_type)
+            y_offset = y_start_offset + i * 30
+            cv2.putText(dbg, text, (x_offset, y_offset), self.font, self.font_scale, self.text_color, self.thickness,
+                        self.line_type)
 
         return dbg
