@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import cv2
+import json
 from capture.camera import Camera
 from pose.body_pose import BodyPose
 from face.head_pose import HeadPose
@@ -20,6 +21,9 @@ from render.activity_level_renderer import ActivityLevelRenderer
 
 from analysis.fall_detector import FallDetector
 
+with open("config.json", "r", encoding="utf-8") as f:
+    config = json.load(f)
+
 # 定义窗口名映射
 WINDOW_NAME_MAP = {
     "FallDetector": "Fall Detector",
@@ -35,29 +39,57 @@ WINDOW_NAME_MAP = {
 }
 
 # 初始化组件
-cam = Camera()
-body_single = BodyPose(num_poses=1)
-body_multi = BodyPose(num_poses=4)
+cam = Camera(
+    index=config["camera"]["index"],
+    width=config["camera"]["width"],
+    height=config["camera"]["height"],
+    fps=config["camera"]["fps"]
+)
+
+body_single = BodyPose(num_poses=config["pose"]["single"]["num_poses"])
+body_multi = BodyPose(num_poses=config["pose"]["multi"]["num_poses"])
 head = HeadPose()
-solver = SkeletonSolver(filter_alpha=0.7)
+solver = SkeletonSolver(filter_alpha=config["skeleton"]["filter_alpha"])
 out = JsonOutput()
 Single_renderer = SingleStickmanRenderer()
 
+# 使用配置初始化渲染器
 intrusion_detection_renderer = IntrusionDetectionRenderer()
-loitering_detection_renderer = LoiteringDetectionRenderer()
-static_detection_renderer = StaticDetectionRenderer(history_length=30, movement_threshold=15.0)
-vigorous_activity_renderer = VigorousActivityRenderer(activity_threshold=30.0)
-activity_level_renderer = ActivityLevelRenderer(low_threshold=15.0, high_threshold=35.0)
+loitering_detection_renderer = LoiteringDetectionRenderer(
+    alert_duration=config["detection"]["loitering"]["alert_duration"],
+    cycle_length=config["detection"]["loitering"]["cycle_length"],
+    alert_threshold=config["detection"]["loitering"]["alert_threshold"]
+)
+static_detection_renderer = StaticDetectionRenderer(
+    history_length=config["detection"]["static"]["history_length"],
+    movement_threshold=config["detection"]["static"]["movement_threshold"]
+)
+vigorous_activity_renderer = VigorousActivityRenderer(
+    activity_threshold=config["detection"]["vigorous_activity"]["activity_threshold"]
+)
+activity_level_renderer = ActivityLevelRenderer(
+    low_threshold=config["detection"]["activity_level"]["low_threshold"],
+    high_threshold=config["detection"]["activity_level"]["high_threshold"]
+)
 
-face_solver_multi = FaceSolver(filter_alpha=0.7, min_area=2000, mode=MODE_MULTI) # 原来的窗口设为多人模式
+face_solver_multi = FaceSolver(
+    filter_alpha=config["face"]["filter_alpha"],
+    min_area=config["face"]["min_area"],
+    mode=MODE_MULTI
+)
 face_recognition_renderer_multi = FaceRecognitionRenderer(face_solver_multi)
-face_solver_single = FaceSolver(filter_alpha=0.7, min_area=2000, mode=MODE_SINGLE) # 单人模式
+face_solver_single = FaceSolver(
+    filter_alpha=config["face"]["filter_alpha"],
+    min_area=config["face"]["min_area"],
+    mode=MODE_SINGLE
+)
 face_recognition_renderer_single = FaceRecognitionRenderer(face_solver_single)
 
 # 初始化渲染器
-fall_detector = FallDetector(ground_threshold_sec=4.5)
+fall_detector = FallDetector(ground_threshold_sec=config["fall_detector"]["ground_threshold_sec"])
 fall_detector_renderer = FallDetectorRenderer(fall_detector)
 pose_recognition_renderer = MultiStickmanRenderer()
+
 
 while True:
     frame = cam.read()
