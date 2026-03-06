@@ -2,3 +2,4 @@ from .single_stickman_renderer import SingleStickmanRenderer
 from .multi_stickman_renderer import MultiStickmanRenderer
 
 from .fall_detector_renderer import FallDetectorRenderer
+from .intrusion_detection_renderer import IntrusionDetectionRenderer
