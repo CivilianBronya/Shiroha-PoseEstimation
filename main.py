@@ -4,10 +4,20 @@ from capture.camera import Camera
 from pose.body_pose import BodyPose
 from face.head_pose import HeadPose
 from rig.skeleton import SkeletonSolver
+from rig.face_solver import FaceSolver, MODE_SINGLE, MODE_MULTI
+
 from output.json_out import JsonOutput
+
 from render.single_stickman_renderer import SingleStickmanRenderer
 from render.multi_stickman_renderer import MultiStickmanRenderer
 from render.fall_detector_renderer import FallDetectorRenderer
+from render.face_recognition_renderer import FaceRecognitionRenderer
+from render.intrusion_detection_renderer import IntrusionDetectionRenderer
+from render.loitering_detection_renderer import LoiteringDetectionRenderer
+from render.static_detection_renderer import StaticDetectionRenderer
+from render.vigorous_activity_renderer import VigorousActivityRenderer
+from render.activity_level_renderer import ActivityLevelRenderer
+
 from analysis.fall_detector import FallDetector
 
 # 定义窗口名映射
@@ -33,19 +43,27 @@ solver = SkeletonSolver(filter_alpha=0.7)
 out = JsonOutput()
 Single_renderer = SingleStickmanRenderer()
 
-# 初始化摔倒检测器和其渲染器
+intrusion_detection_renderer = IntrusionDetectionRenderer()
+loitering_detection_renderer = LoiteringDetectionRenderer()
+static_detection_renderer = StaticDetectionRenderer(history_length=30, movement_threshold=15.0)
+vigorous_activity_renderer = VigorousActivityRenderer(activity_threshold=30.0)
+activity_level_renderer = ActivityLevelRenderer(low_threshold=15.0, high_threshold=35.0)
+
+face_solver_multi = FaceSolver(filter_alpha=0.7, min_area=2000, mode=MODE_MULTI) # 原来的窗口设为多人模式
+face_recognition_renderer_multi = FaceRecognitionRenderer(face_solver_multi)
+face_solver_single = FaceSolver(filter_alpha=0.7, min_area=2000, mode=MODE_SINGLE) # 单人模式
+face_recognition_renderer_single = FaceRecognitionRenderer(face_solver_single)
+
+# 初始化渲染器
 fall_detector = FallDetector(ground_threshold_sec=4.5)
 fall_detector_renderer = FallDetectorRenderer(fall_detector)
-
-# 初始化多人姿态识别渲染器
 pose_recognition_renderer = MultiStickmanRenderer()
 
 while True:
     frame = cam.read()
     if frame is None:
         continue
-
-    # 获取 BodyPose 的原始数据（单人）
+    # 获取 BodyPose 的原始数据
     raw_body_result_single = body_single.detect(frame)
     body_pts_list = None
     raw_body_yaw = None
@@ -86,13 +104,45 @@ while True:
         debug_frame_pose_monitoring = pose_recognition_renderer.draw(debug_frame_pose_monitoring, multi_body_data)
     cv2.imshow(WINDOW_NAME_MAP["PoseMonitoring"], debug_frame_pose_monitoring)
 
-    # cv2.imshow(WINDOW_NAME_MAP["FaceRecognition"], frame)
-    # cv2.imshow(WINDOW_NAME_MAP["IntrusionDetection"], frame)
-    # cv2.imshow(WINDOW_NAME_MAP["EmotionDetection"], frame)
-    # cv2.imshow(WINDOW_NAME_MAP["LoiteringDetection"], frame)
-    # cv2.imshow(WINDOW_NAME_MAP["StaticDetection"], frame)
-    # cv2.imshow(WINDOW_NAME_MAP["VigorousActivity"], frame)
-    # cv2.imshow(WINDOW_NAME_MAP["ActivityLevel"], frame)
+    # FaceRecognition 窗口
+    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+    face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
+    faces_raw = face_cascade.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=5, minSize=(30, 30))
+
+    # 将检测结果转换为渲染器期望的格式 [[x, y, w, h], ...]
+    faces_for_render = [[int(x), int(y), int(w), int(h)] for (x, y, w, h) in faces_raw]
+    debug_frame_face_recognition = frame.copy()
+    debug_frame_face_recognition = face_recognition_renderer_multi.draw(debug_frame_face_recognition, faces_for_render)
+    cv2.imshow(WINDOW_NAME_MAP["FaceRecognition"], debug_frame_face_recognition)
+
+    # IntrusionDetection 窗口
+    debug_frame_intrusion = frame.copy()
+    debug_frame_intrusion = intrusion_detection_renderer.draw(debug_frame_intrusion, multi_body_data)
+    cv2.imshow(WINDOW_NAME_MAP["IntrusionDetection"], debug_frame_intrusion)
+
+    # EmotionDetection 窗口
+    debug_frame_emotion = frame.copy()
+    debug_frame_emotion = face_recognition_renderer_single.draw(debug_frame_emotion,
+                                                                faces_for_render)
+    cv2.imshow(WINDOW_NAME_MAP["EmotionDetection"], debug_frame_emotion)
+
+    # LoiteringDetection 窗口
+    debug_frame_loitering = frame.copy()
+    debug_frame_loitering = loitering_detection_renderer.draw(debug_frame_loitering, multi_body_data)  # 传入多人数据（即使没用到）
+    cv2.imshow(WINDOW_NAME_MAP["LoiteringDetection"], debug_frame_loitering)
+
+    # StaticDetection 窗口
+    debug_frame_static = frame.copy()
+    debug_frame_static = static_detection_renderer.draw(debug_frame_static, multi_body_data)
+    cv2.imshow(WINDOW_NAME_MAP["StaticDetection"], debug_frame_static)
+
+    debug_frame_vigorous = frame.copy()
+    debug_frame_vigorous = vigorous_activity_renderer.draw(debug_frame_vigorous, body_pts_list)
+    cv2.imshow(WINDOW_NAME_MAP["VigorousActivity"], debug_frame_vigorous)
+
+    debug_frame_activity = frame.copy()
+    debug_frame_activity = activity_level_renderer.draw(debug_frame_activity, body_pts_list)
+    cv2.imshow(WINDOW_NAME_MAP["ActivityLevel"], debug_frame_activity)
 
     if cv2.waitKey(1) == 27:  # ESC 键退出
         break
