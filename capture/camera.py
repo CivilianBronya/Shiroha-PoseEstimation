@@ -2,7 +2,7 @@ import cv2
 import time
 
 class Camera:
-    def __init__(self, index=0, width=960, height=720, fps=30):
+    def __init__(self, index=1, width=960, height=720, fps=30):
         self.cap = cv2.VideoCapture(index, cv2.CAP_DSHOW)
 
         # 分辨率（太高会卡，太低骨架抖）

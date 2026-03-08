@@ -1,0 +1,648 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>🎯 Shiroha Pose Estimation Demo (Fixed)</title>
+  <style>
+    :root {
+      --primary: #3b82f6; --success: #22c55e; --warning: #f59e0b; --danger: #ef4444;
+      --bg: #0f172a; --card: #1e293b; --text: #f1f5f9; --text-dim: #94a3b8; --border: #334155;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); line-height: 1.6; padding: 1rem; min-height: 100vh; }
+    .container { max-width: 1400px; margin: 0 auto; display: grid; gap: 1rem; }
+
+    /* 头部 */
+    header { display: flex; justify-content: space-between; align-items: center; padding: 1rem; background: var(--card); border-radius: 12px; border: 1px solid var(--border); }
+    .logo { display: flex; align-items: center; gap: 0.5rem; font-size: 1.25rem; font-weight: 600; }
+    .status-badge { padding: 0.25rem 0.75rem; border-radius: 999px; font-size: 0.875rem; font-weight: 500; }
+    .status-disconnected { background: var(--danger); color: white; }
+    .status-connecting { background: var(--warning); color: black; }
+    .status-connected { background: var(--success); color: white; }
+
+    /* 控制面板 */
+    .control-panel { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 0.75rem; padding: 1rem; background: var(--card); border-radius: 12px; border: 1px solid var(--border); }
+    .control-group { display: flex; flex-direction: column; gap: 0.25rem; }
+    .control-group label { font-size: 0.875rem; color: var(--text-dim); }
+    .control-group input, .control-group select, .control-group button { padding: 0.5rem; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--text); font-size: 0.9rem; }
+    .control-group button { cursor: pointer; transition: background 0.2s; font-weight: 500; }
+    .control-group button:hover { background: var(--primary); }
+    .control-group button:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-primary { background: var(--primary); border-color: var(--primary); color: white; }
+    .btn-danger { background: var(--danger); border-color: var(--danger); color: white; }
+
+    /* 主内容区 */
+    .main-content { display: grid; grid-template-columns: 1fr 350px; gap: 1rem; }
+    @media (max-width: 1024px) { .main-content { grid-template-columns: 1fr; } }
+
+    /* 视频区域 */
+    .video-section { background: var(--card); border-radius: 12px; border: 1px solid var(--border); overflow: hidden; }
+    .tabs { display: flex; border-bottom: 1px solid var(--border); background: rgba(0,0,0,0.2); flex-wrap: wrap; }
+    .tab-btn { padding: 0.75rem 1rem; background: none; border: none; color: var(--text-dim); cursor: pointer; font-size: 0.9rem; border-bottom: 2px solid transparent; transition: all 0.2s; }
+    .tab-btn:hover { color: var(--text); }
+    .tab-btn.active { color: var(--primary); border-bottom-color: var(--primary); font-weight: 500; }
+
+    .video-container { position: relative; aspect-ratio: 16/9; background: #000; display: none; align-items: center; justify-content: center; }
+    .video-container.active { display: flex; }
+    .video-container img { max-width: 100%; max-height: 100%; object-fit: contain; }
+    .video-placeholder { color: var(--text-dim); text-align: center; padding: 2rem; font-size: 0.9rem; }
+    .video-overlay { position: absolute; top: 0.5rem; left: 0.5rem; padding: 0.25rem 0.5rem; background: rgba(0,0,0,0.7); border-radius: 4px; font-size: 0.75rem; color: var(--text-dim); }
+
+    /* 状态面板 */
+    .status-panel { background: var(--card); border-radius: 12px; border: 1px solid var(--border); padding: 1rem; display: flex; flex-direction: column; gap: 1rem; max-height: 600px; overflow-y: auto; }
+    .status-card { background: var(--bg); border-radius: 8px; padding: 0.75rem; border-left: 4px solid var(--primary); }
+    .status-card.fall-alert { border-left-color: var(--danger); animation: pulse 2s infinite; }
+    @keyframes pulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); } 50% { box-shadow: 0 0 0 10px rgba(239, 68, 68, 0); } }
+    .status-title { font-size: 0.875rem; color: var(--text-dim); margin-bottom: 0.25rem; }
+    .status-value { font-size: 1.25rem; font-weight: 600; }
+    .status-value.danger { color: var(--danger); }
+    .status-value.warning { color: var(--warning); }
+    .status-value.success { color: var(--success); }
+
+    .json-output { background: #0d1117; border-radius: 6px; padding: 0.75rem; font-family: 'Fira Code', monospace; font-size: 0.75rem; color: #e6edf3; max-height: 200px; overflow: auto; white-space: pre-wrap; word-break: break-all; }
+    .log-output { background: #0d1117; border-radius: 6px; padding: 0.75rem; font-family: monospace; font-size: 0.75rem; color: #8b949e; max-height: 150px; overflow-y: auto; }
+    .log-entry { margin: 0.25rem 0; }
+    .log-entry.error { color: var(--danger); }
+    .log-entry.warn { color: var(--warning); }
+    .log-entry.info { color: var(--primary); }
+    .log-entry.success { color: var(--success); }
+
+    .risk-bar { height: 8px; background: var(--border); border-radius: 4px; overflow: hidden; margin-top: 0.5rem; }
+    .risk-fill { height: 100%; background: linear-gradient(90deg, var(--success), var(--warning), var(--danger)); transition: width 0.3s ease; border-radius: 4px; }
+
+    /* 图像加载状态指示器 */
+    .img-loading { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: var(--text-dim); font-size: 0.875rem; }
+    .img-loaded { border: 2px solid var(--success); }
+    .img-error { border: 2px solid var(--danger); }
+
+    .hidden { display: none !important; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <!-- 头部 -->
+    <header>
+      <div class="logo"><span class="logo-icon">🎯</span><span>Shiroha Pose Estimation</span></div>
+      <div id="connectionStatus" class="status-badge status-disconnected">未连接</div>
+    </header>
+
+    <!-- 控制面板 -->
+    <div class="control-panel">
+      <div class="control-group">
+        <label>WebSocket 地址</label>
+        <input type="text" id="wsUrl" value="ws://localhost:8765" placeholder="ws://host:port">
+      </div>
+      <div class="control-group">
+        <label>UUID (设备标识)</label>
+        <input type="text" id="uuid" placeholder="自动生成或自定义">
+      </div>
+      <div class="control-group">
+        <label>发送帧率 (FPS)</label>
+        <select id="fps">
+          <option value="5">5 FPS</option>
+          <option value="10" selected>10 FPS</option>
+          <option value="15">15 FPS</option>
+          <option value="30">30 FPS</option>
+        </select>
+      </div>
+      <div class="control-group">
+        <label>图像质量</label>
+        <select id="quality">
+          <option value="60">低 (60%)</option>
+          <option value="75" selected>中 (75%)</option>
+          <option value="90">高 (90%)</option>
+        </select>
+      </div>
+      <div class="control-group">
+        <label>&nbsp;</label>
+        <button id="connectBtn" class="btn-primary">🔌 连接</button>
+      </div>
+      <div class="control-group">
+        <label>&nbsp;</label>
+        <button id="startBtn" disabled>📹 开始推流</button>
+      </div>
+      <div class="control-group">
+        <label>&nbsp;</label>
+        <button id="stopBtn" disabled class="btn-danger">⏹ 停止</button>
+      </div>
+    </div>
+
+    <!-- 主内容区 -->
+    <div class="main-content">
+      <!-- 视频展示区 -->
+      <div class="video-section">
+        <div class="tabs">
+          <button class="tab-btn active" data-mode="original">📷 原始画面</button>
+          <button class="tab-btn" data-mode="fall_detector">🚨 摔倒检测</button>
+          <button class="tab-btn" data-mode="pose_monitoring">🧍 姿态监控</button>
+          <button class="tab-btn" data-mode="intrusion">🚧 入侵检测</button>
+          <button class="tab-btn" data-mode="activity">🏃 活动分析</button>
+        </div>
+
+        <!-- 原始画面 -->
+        <div class="video-container active" id="video-original">
+          <video id="localVideo" autoplay playsinline muted></video>
+          <canvas id="captureCanvas" class="hidden"></canvas>
+          <div class="video-placeholder">点击"开始推流"启动摄像头</div>
+          <div class="video-overlay">Local Camera</div>
+        </div>
+
+        <!-- 渲染画面模板（其他模式同理） -->
+        <div class="video-container" id="video-fall_detector">
+          <img id="render-fall_detector" alt="Fall Detector" style="display:none">
+          <div class="img-loading" id="loading-fall_detector">⏳ 等待图像...</div>
+          <div class="video-placeholder" id="placeholder-fall_detector">等待服务端推送渲染画面...</div>
+          <div class="video-overlay">Server: Fall Detector</div>
+        </div>
+        <div class="video-container" id="video-pose_monitoring">
+          <img id="render-pose_monitoring" alt="Pose Monitoring" style="display:none">
+          <div class="img-loading" id="loading-pose_monitoring">⏳ 等待图像...</div>
+          <div class="video-placeholder" id="placeholder-pose_monitoring">等待服务端推送渲染画面...</div>
+          <div class="video-overlay">Server: Pose Monitoring</div>
+        </div>
+        <div class="video-container" id="video-intrusion">
+          <img id="render-intrusion" alt="Intrusion Detection" style="display:none">
+          <div class="img-loading" id="loading-intrusion">⏳ 等待图像...</div>
+          <div class="video-placeholder" id="placeholder-intrusion">等待服务端推送渲染画面...</div>
+          <div class="video-overlay">Server: Intrusion Detection</div>
+        </div>
+        <div class="video-container" id="video-activity">
+          <img id="render-activity" alt="Activity Analysis" style="display:none">
+          <div class="img-loading" id="loading-activity">⏳ 等待图像...</div>
+          <div class="video-placeholder" id="placeholder-activity">等待服务端推送渲染画面...</div>
+          <div class="video-overlay">Server: Activity Analysis</div>
+        </div>
+      </div>
+
+      <!-- 状态面板 -->
+      <div class="status-panel">
+        <div class="status-card" id="fallCard">
+          <div class="status-title">🚨 摔倒检测</div>
+          <div class="status-value" id="fallStatus">未检测</div>
+          <div class="risk-bar"><div class="risk-fill" id="riskFill" style="width: 0%"></div></div>
+          <div style="display:flex;justify-content:space-between;font-size:0.75rem;color:var(--text-dim);margin-top:0.25rem">
+            <span>风险分值: <span id="riskScore">0</span>/100</span>
+            <span id="fallState">STAND</span>
+          </div>
+        </div>
+
+        <div class="status-card">
+          <div class="status-title">📊 分析状态</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.5rem;font-size:0.875rem">
+            <div>👥 检测人数: <strong id="poseCount">0</strong></div>
+            <div>⏱ 延迟: <strong id="latency">-</strong>ms</div>
+            <div>📦 帧大小: <strong id="frameSize">-</strong>KB</div>
+            <div>🔄 FPS: <strong id="actualFps">0</strong></div>
+          </div>
+        </div>
+
+        <div class="status-card">
+          <div class="status-title">📋 原始 JSON 数据</div>
+          <div class="json-output" id="jsonOutput">{}</div>
+        </div>
+
+        <div class="status-card">
+          <div class="status-title">📝 运行日志</div>
+          <div class="log-output" id="logOutput">
+            <div class="log-entry info">系统就绪，等待连接...</div>
+          </div>
+        </div>
+
+        <div class="status-card">
+          <div class="status-title">🔔 订阅渲染模式</div>
+          <div style="display:flex;flex-wrap:wrap;gap:0.5rem;margin-top:0.5rem">
+            <label style="display:flex;align-items:center;gap:0.25rem;font-size:0.875rem">
+              <input type="checkbox" class="mode-sub" value="fall_detector" checked> 摔倒检测
+            </label>
+            <label style="display:flex;align-items:center;gap:0.25rem;font-size:0.875rem">
+              <input type="checkbox" class="mode-sub" value="pose_monitoring" checked> 姿态监控
+            </label>
+            <label style="display:flex;align-items:center;gap:0.25rem;font-size:0.875rem">
+              <input type="checkbox" class="mode-sub" value="intrusion"> 入侵检测
+            </label>
+            <label style="display:flex;align-items:center;gap:0.25rem;font-size:0.875rem">
+              <input type="checkbox" class="mode-sub" value="activity"> 活动分析
+            </label>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ==================== 工具函数 ====================
+
+    function generateUUID() {
+      return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+        const r = Math.random() * 16 | 0;
+        const v = c === 'x' ? r : (r & 0x3 | 0x8);
+        return v.toString(16);
+      });
+    }
+
+    function log(message, type = 'info') {
+      const logEl = document.getElementById('logOutput');
+      const entry = document.createElement('div');
+      entry.className = `log-entry ${type}`;
+      entry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+      logEl.appendChild(entry);
+      logEl.scrollTop = logEl.scrollHeight;
+      console.log(`[${type.toUpperCase()}] ${message}`);
+    }
+
+    function updateStatus(data) {
+      if (!data) return;
+      if (data.fall_detected !== undefined) {
+        const fallEl = document.getElementById('fallStatus');
+        const fallCard = document.getElementById('fallCard');
+        if (data.fall_detected) {
+          fallEl.textContent = '⚠️ 已摔倒!';
+          fallEl.className = 'status-value danger';
+          fallCard.classList.add('fall-alert');
+        } else {
+          fallEl.textContent = '✅ 正常';
+          fallEl.className = 'status-value success';
+          fallCard.classList.remove('fall-alert');
+        }
+      }
+      if (data.fall_risk_score !== undefined) {
+        const score = Math.max(0, Math.min(100, data.fall_risk_score));
+        document.getElementById('riskScore').textContent = score;
+        document.getElementById('riskFill').style.width = `${score}%`;
+      }
+      if (data.fall_state) document.getElementById('fallState').textContent = data.fall_state;
+      if (data.pose_count !== undefined) document.getElementById('poseCount').textContent = data.pose_count;
+      if (data.timestamp) {
+        const latency = Date.now() - data.timestamp * 1000;
+        document.getElementById('latency').textContent = latency > 0 ? Math.round(latency) : '-';
+      }
+      document.getElementById('jsonOutput').textContent = JSON.stringify(data, null, 2);
+    }
+
+    // ✅ 修复核心：正确的图像更新函数
+    function updateRender(mode, base64Data) {
+      const img = document.getElementById(`render-${mode}`);
+      const placeholder = document.getElementById(`placeholder-${mode}`);
+      const loading = document.getElementById(`loading-${mode}`);
+      const container = document.getElementById(`video-${mode}`);
+
+      if (!img) {
+        log(`❌ Image element not found: render-${mode}`, 'error');
+        return;
+      }
+
+      // 显示加载状态
+      if (loading) loading.classList.remove('hidden');
+      if (placeholder) placeholder.classList.add('hidden');
+      img.classList.remove('img-error');
+
+      // 创建临时 Image 对象预加载，避免直接设置 src 失败无反馈
+      const tempImg = new Image();
+
+      tempImg.onload = function() {
+        log(`✅ Image loaded: ${mode} (${tempImg.width}x${tempImg.height})`, 'success');
+
+        // 切换到目标 Tab 时才显示图像（避免后台加载不可见）
+        if (container?.classList.contains('active')) {
+          img.style.display = 'block';
+          if (loading) loading.classList.add('hidden');
+          img.classList.add('img-loaded');
+          // 移除旧 src 避免内存泄漏
+          if (img.src && img.src.startsWith('blob:')) URL.revokeObjectURL(img.src);
+          img.src = tempImg.src;
+        } else {
+          // 后台预加载完成，标记为就绪
+          img.dataset.ready = 'true';
+          img.dataset.src = tempImg.src;  // 缓存 src
+          if (loading) loading.textContent = '✅ 图像就绪 (切换标签查看)';
+          log(`📦 Image preloaded (background): ${mode}`, 'info');
+        }
+      };
+
+      tempImg.onerror = function(e) {
+        log(`❌ Image load failed: ${mode} - ${e}`, 'error');
+        if (loading) loading.textContent = '❌ 加载失败';
+        if (placeholder) placeholder.classList.remove('hidden');
+        img.classList.add('img-error');
+
+        // 调试：尝试直接设置看看是否有效
+        try {
+          const directSrc = `data:image/jpeg;base64,${base64Data.substring(0, 100)}...`;
+          console.warn('⚠️ First 100 chars of base64:', base64Data.substring(0, 100));
+        } catch (err) {
+          console.error('Debug error:', err);
+        }
+      };
+
+      // ✅ 关键修复：正确拼接 data URL（移除 # 时间戳！）
+      try {
+        const dataUrl = `data:image/jpeg;base64,${base64Data}`;
+        tempImg.src = dataUrl;
+        log(`🔄 Loading image: ${mode} (base64 length: ${base64Data.length})`);
+      } catch (err) {
+        log(`❌ Failed to create data URL: ${err.message}`, 'error');
+        if (loading) loading.textContent = '❌ 格式错误';
+      }
+    }
+
+    // ==================== WebSocket 客户端 ====================
+
+    class ShirohaClient {
+      constructor(config) {
+        this.config = {
+          wsUrl: 'ws://localhost:8765',
+          uuid: generateUUID(),
+          fps: 10,
+          quality: 75,
+          modes: ['fall_detector', 'pose_monitoring'],
+          ...config
+        };
+        this.ws = null;
+        this.stream = null;
+        this.video = null;
+        this.canvas = null;
+        this.ctx = null;
+        this.isStreaming = false;
+        this.sendInterval = null;
+        this.frameCount = 0;
+        this.lastFpsUpdate = Date.now();
+        this.reconnectAttempts = 0;
+        this.maxReconnect = 5;
+      }
+
+      initDOM() {
+        this.video = document.getElementById('localVideo');
+        this.canvas = document.getElementById('captureCanvas');
+        this.ctx = this.canvas.getContext('2d');
+
+        const uuidInput = document.getElementById('uuid');
+        if (!uuidInput.value) uuidInput.value = this.config.uuid;
+        uuidInput.addEventListener('change', (e) => {
+          this.config.uuid = e.target.value || generateUUID();
+          log(`UUID 更新: ${this.config.uuid}`);
+        });
+
+        document.getElementById('connectBtn').onclick = () => this.toggleConnection();
+        document.getElementById('startBtn').onclick = () => this.startStreaming();
+        document.getElementById('stopBtn').onclick = () => this.stopStreaming();
+        document.querySelectorAll('.mode-sub').forEach(cb => cb.onchange = () => this.updateSubscriptions());
+        document.querySelectorAll('.tab-btn').forEach(btn => btn.onclick = (e) => this.switchTab(e.target.dataset.mode));
+      }
+
+      async toggleConnection() {
+        const btn = document.getElementById('connectBtn');
+        const statusEl = document.getElementById('connectionStatus');
+
+        if (this.ws?.readyState === WebSocket.OPEN) {
+          this.ws.close();
+          return;
+        }
+
+        this.config.wsUrl = document.getElementById('wsUrl').value;
+        this.config.uuid = document.getElementById('uuid').value || generateUUID();
+        this.config.fps = parseInt(document.getElementById('fps').value);
+        this.config.quality = parseInt(document.getElementById('quality').value);
+
+        btn.disabled = true;
+        statusEl.textContent = '连接中...';
+        statusEl.className = 'status-badge status-connecting';
+
+        try {
+          await this.connect();
+          btn.textContent = '🔌 断开';
+          btn.className = 'btn-danger';
+          statusEl.textContent = '已连接';
+          statusEl.className = 'status-badge status-connected';
+          document.getElementById('startBtn').disabled = false;
+          log(`✅ 已连接到 ${this.config.wsUrl}`);
+        } catch (err) {
+          log(`❌ 连接失败: ${err.message}`, 'error');
+          statusEl.textContent = '连接失败';
+          statusEl.className = 'status-badge status-disconnected';
+          btn.disabled = false;
+        }
+      }
+
+      connect() {
+        return new Promise((resolve, reject) => {
+          this.ws = new WebSocket(this.config.wsUrl);
+          this.ws.onopen = () => { this.reconnectAttempts = 0; this.sendRegister(); resolve(); };
+          this.ws.onmessage = (event) => this.handleMessage(event);
+          this.ws.onclose = (event) => { log(`🔌 连接关闭: ${event.code} ${event.reason}`, 'warn'); this.onDisconnected(); };
+          this.ws.onerror = (error) => { log(`❌ WebSocket 错误`, 'error'); reject(error); };
+        });
+      }
+
+      sendRegister() {
+        const modes = Array.from(document.querySelectorAll('.mode-sub:checked')).map(cb => cb.value);
+        const message = {
+          action: 'register',
+          uuid: this.config.uuid,
+          config: {
+            width: 960, height: 720,
+            modes: modes,
+            output_format: { image: true, json: true }
+          }
+        };
+        this.ws.send(JSON.stringify(message));
+        log(`📤 发送注册: uuid=${this.config.uuid}, modes=[${modes.join(', ')}]`);
+      }
+
+      updateSubscriptions() {
+        if (this.ws?.readyState !== WebSocket.OPEN) return;
+        const modes = Array.from(document.querySelectorAll('.mode-sub:checked')).map(cb => cb.value);
+        this.config.modes = modes;
+        this.sendRegister();  // 重新注册更新订阅
+        log(`🔄 更新订阅: [${modes.join(', ')}]`);
+      }
+
+      handleMessage(event) {
+        // 🔍 调试：打印原始消息类型和长度
+        if (typeof event.data === 'string') {
+          console.log(`📥 TEXT message: ${event.data.substring(0, 200)}...`);
+        } else if (event.data instanceof Blob) {
+          console.log(`📥 BLOB message: ${event.data.size} bytes`);
+        } else if (event.data instanceof ArrayBuffer) {
+          console.log(`📥 ARRAYBUFFER: ${event.data.byteLength} bytes`);
+        }
+
+        try {
+          const msg = JSON.parse(event.data);
+          console.log(`🔍 Parsed: type=${msg.type}, mode=${msg.mode}, uuid=${msg.uuid?.substring(0,8)}...`);
+
+          if (msg.type === 'ack') {
+            log(`✅ 注册确认: ${msg.status}`);
+            return;
+          }
+
+          if (msg.type === 'status' && msg.data) {
+            updateStatus(msg.data);
+            return;
+          }
+
+          // ✅ 关键：接收 render 消息
+          if (msg.type === 'render' && msg.mode && msg.frame) {
+            log(`🎨 Received render: mode=${msg.mode}, frame_len=${msg.frame.length}`);
+            updateRender(msg.mode, msg.frame);
+            return;
+          }
+
+          if (msg.type === 'error') {
+            log(`⚠️ 服务端错误: ${msg.message}`, 'warn');
+            if (msg.traceback) console.error(msg.traceback);
+            return;
+          }
+
+          log(`❓ 未知消息: type=${msg.type}`, 'warn');
+
+        } catch (err) {
+          log(`❌ 消息解析失败: ${err.message}`, 'error');
+          console.error('Raw data:', event.data);
+        }
+      }
+
+      onDisconnected() {
+        this.isStreaming = false;
+        this.stopSending();
+        const btn = document.getElementById('connectBtn');
+        const statusEl = document.getElementById('connectionStatus');
+        btn.textContent = '🔌 连接';
+        btn.className = 'btn-primary';
+        btn.disabled = false;
+        document.getElementById('startBtn').disabled = true;
+        document.getElementById('stopBtn').disabled = true;
+        statusEl.textContent = '未连接';
+        statusEl.className = 'status-badge status-disconnected';
+
+        if (this.reconnectAttempts < this.maxReconnect) {
+          this.reconnectAttempts++;
+          const delay = Math.min(1000 * Math.pow(2, this.reconnectAttempts), 10000);
+          log(`🔄 ${this.reconnectAttempts}/${this.maxReconnect} 重连 (${delay}ms)...`, 'warn');
+          setTimeout(() => this.toggleConnection(), delay);
+        }
+      }
+
+      async startStreaming() {
+        if (this.isStreaming) return;
+        if (this.ws?.readyState !== WebSocket.OPEN) { log('❌ 请先连接 WebSocket', 'error'); return; }
+
+        try {
+          this.stream = await navigator.mediaDevices.getUserMedia({
+            video: { width: { ideal: 960 }, height: { ideal: 720 }, frameRate: { ideal: this.config.fps } },
+            audio: false
+          });
+          this.video.srcObject = this.stream;
+          await this.video.play();
+          this.canvas.width = this.video.videoWidth || 960;
+          this.canvas.height = this.video.videoHeight || 720;
+
+          document.getElementById('video-original').classList.add('active');
+          document.getElementById('localVideo').style.display = 'block';
+          document.querySelector('#video-original .video-placeholder')?.classList.add('hidden');
+
+          this.isStreaming = true;
+          document.getElementById('startBtn').disabled = true;
+          document.getElementById('stopBtn').disabled = false;
+          this.startSending();
+          log(`📹 开始推流: ${this.canvas.width}x${this.canvas.height} @ ${this.config.fps}FPS`);
+        } catch (err) {
+          log(`❌ 摄像头启动失败: ${err.message}`, 'error');
+          alert('无法访问摄像头，请检查权限');
+        }
+      }
+
+      stopStreaming() {
+        if (!this.isStreaming) return;
+        this.isStreaming = false;
+        this.stopSending();
+        if (this.stream) { this.stream.getTracks().forEach(track => track.stop()); this.stream = null; }
+        this.video.srcObject = null;
+        document.getElementById('localVideo').style.display = 'none';
+        document.querySelector('#video-original .video-placeholder')?.classList.remove('hidden');
+        document.getElementById('startBtn').disabled = false;
+        document.getElementById('stopBtn').disabled = true;
+        log('⏹ 已停止推流');
+      }
+
+      startSending() {
+        this.stopSending();
+        const interval = 1000 / this.config.fps;
+        this.sendInterval = setInterval(() => {
+          if (!this.isStreaming || this.ws?.readyState !== WebSocket.OPEN) { this.stopSending(); return; }
+          this.sendFrame();
+        }, interval);
+        log(`⏱ 发送定时器: ${this.config.fps}FPS`);
+      }
+
+      stopSending() { if (this.sendInterval) { clearInterval(this.sendInterval); this.sendInterval = null; } }
+
+      sendFrame() {
+        if (!this.ctx || !this.video.videoWidth) return;
+        this.ctx.drawImage(this.video, 0, 0, this.canvas.width, this.canvas.height);
+        this.canvas.toBlob((blob) => {
+          if (!blob) { log('❌ 帧编码失败', 'error'); return; }
+          const reader = new FileReader();
+          reader.onload = () => {
+            const frameData = reader.result;
+            const uuidBytes = new TextEncoder().encode(this.config.uuid.padEnd(36).slice(0, 36));
+            const message = new Uint8Array(uuidBytes.length + frameData.byteLength);
+            message.set(uuidBytes, 0);
+            message.set(new Uint8Array(frameData), uuidBytes.length);
+            this.ws.send(message);
+
+            this.frameCount++;
+            const now = Date.now();
+            if (now - this.lastFpsUpdate >= 1000) {
+              const actualFps = Math.round(this.frameCount * 1000 / (now - this.lastFpsUpdate));
+              document.getElementById('actualFps').textContent = actualFps;
+              document.getElementById('frameSize').textContent = Math.round(frameData.byteLength / 1024);
+              this.frameCount = 0;
+              this.lastFpsUpdate = now;
+            }
+          };
+          reader.readAsArrayBuffer(blob);
+        }, 'image/jpeg', this.config.quality / 100);
+      }
+
+      switchTab(mode) {
+        document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.toggle('active', btn.dataset.mode === mode));
+        document.querySelectorAll('.video-container').forEach(c => c.classList.remove('active'));
+        document.getElementById(`video-${mode}`).classList.add('active');
+
+        // 🔥 关键：切换 Tab 时，如果图像已预加载完成，立即显示
+        const img = document.getElementById(`render-${mode}`);
+        const placeholder = document.getElementById(`placeholder-${mode}`);
+        const loading = document.getElementById(`loading-${mode}`);
+
+        if (img?.dataset.ready === 'true' && img.dataset.src) {
+          log(`🖼️ Showing preloaded image: ${mode}`);
+          img.src = img.dataset.src;
+          img.style.display = 'block';
+          if (loading) loading.classList.add('hidden');
+          if (placeholder) placeholder.classList.add('hidden');
+          img.classList.add('img-loaded');
+        }
+
+        log(`📺 切换到模式: ${mode}`);
+      }
+
+      destroy() {
+        this.stopStreaming();
+        if (this.ws?.readyState === WebSocket.OPEN) this.ws.close();
+        if (this.sendInterval) clearInterval(this.sendInterval);
+      }
+    }
+
+    // ==================== 初始化 ====================
+    let client = null;
+    document.addEventListener('DOMContentLoaded', () => {
+      client = new ShirohaClient();
+      client.initDOM();
+      window.addEventListener('beforeunload', () => client?.destroy());
+      document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && client?.isStreaming) client.stopStreaming(); });
+      log('🎯 Demo 页面加载完成 (Fixed Version)');
+    });
+  </script>
+</body>
+</html>
