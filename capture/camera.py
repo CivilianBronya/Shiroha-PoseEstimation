@@ -49,4 +49,5 @@ class Camera:
     def release(self):
         self.cap.release()
         cv2.destroyAllWindows()
+    # TODO:流式传输
     # TODO:写多协议试图兼容其他类的如摄像头，手表，手机，还有小智（以演示为主）

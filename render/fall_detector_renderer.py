@@ -9,12 +9,14 @@ class FallDetectorRenderer:
         """
         self.fall_detector = fall_detector or FallDetector(ground_threshold_sec=4.5)
         self.font = cv2.FONT_HERSHEY_SIMPLEX
-        self.font_scale = 0.6
+        self.font_scale = 0.5
         self.thickness = 1
-        self.text_color = (255, 255, 255)  # 白色文字
+        self.text_color = (255, 255, 255)
         self.line_type = cv2.LINE_AA
+        self.bg_color = (0, 0, 0)
+        self.bg_alpha = 0.4
 
-    def draw(self, frame, skeleton):
+    def draw(self, frame, skeleton, original_keypoints_2d=None):
         """
         在帧上绘制摔倒检测的状态信息。
 
@@ -31,7 +33,10 @@ class FallDetectorRenderer:
         dbg = frame.copy()
 
         # 摔倒检测器处理骨架数据，并返回是否摔倒的布尔值
-        is_falling = self.fall_detector.update(skeleton)
+        self.fall_detector.update(skeleton, original_keypoints_2d)
+        # print("Debug: original_keypoints_2d is None:", original_keypoints_2d is None)
+        # if original_keypoints_2d is not None:
+            # print("Debug: First keypoint (x,y,conf):", original_keypoints_2d[0])
 
         # 获取当前状态名称
         state_name = self.fall_detector.get_state_name()
@@ -43,15 +48,13 @@ class FallDetectorRenderer:
         support_val = current_features.get('support', 1)
 
         risk_score = self.fall_detector.get_fall_risk_score()
-        # TODO:将数据展示改为阈值，True与False将由前端做
+        score_display = f"SCORE: {risk_score}"
         info_texts = [
             f"STATE: {state_name}",
             f"TILT: {tilt_val:.1f}°",
-            f"VY: {vy_val:.2f} deg/s",
+            f"VY: {vy_val:.2f} px/s",
             f"SUPPORT: {support_val:.2f}",
-            # f"FALL: {'TRUE' if is_falling else 'FALSE'}",
-            # f"ALARM: {'TRUE' if is_falling else 'FALSE'}"
-            f"SCORE: {risk_score:.2f}"
+            score_display
         ]
 
         x_offset = 10
@@ -59,6 +62,21 @@ class FallDetectorRenderer:
 
         for i, text in enumerate(info_texts):
             y_offset = y_start_offset + i * 30
+
+            text_size = cv2.getTextSize(text, self.font, self.font_scale, self.thickness)[0]
+            text_width, text_height = text_size[0], text_size[1]
+
+            bg_x1 = x_offset - 5
+            bg_y1 = y_offset - text_height // 2 - 5
+            bg_x2 = x_offset + text_width + 5
+            bg_y2 = y_offset + text_height // 2 + 5
+
+            overlay = dbg.copy()
+
+            cv2.rectangle(overlay, (bg_x1, bg_y1), (bg_x2, bg_y2), self.bg_color, -1)  # -1 填充
+
+            cv2.addWeighted(overlay, self.bg_alpha, dbg, 1 - self.bg_alpha, 0, dbg)
+
             cv2.putText(dbg, text, (x_offset, y_offset), self.font, self.font_scale, self.text_color, self.thickness,
                         self.line_type)
 

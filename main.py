@@ -119,7 +119,7 @@ while True:
     debug_frame_fall_detector = frame.copy()
     if body_pts_list is not None:
         debug_frame_fall_detector = Single_renderer.draw(debug_frame_fall_detector, body_pts_list, skeleton)
-    debug_frame_fall_detector = fall_detector_renderer.draw(debug_frame_fall_detector, skeleton)
+    debug_frame_fall_detector = fall_detector_renderer.draw(debug_frame_fall_detector, skeleton, body_pts_list)
     cv2.imshow(WINDOW_NAME_MAP["FallDetector"], debug_frame_fall_detector)
 
     # PoseMonitoring 多人姿态
