@@ -158,3 +158,5 @@ results/
 # Or any personal notes or temporary scripts:
 *.tmp.py
 personal_notes.txt
+*.jsonl
+config.json
