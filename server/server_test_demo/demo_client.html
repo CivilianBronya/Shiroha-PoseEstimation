@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>🎯 Shiroha Pose Estimation Demo (Fixed)</title>
+  <title>🎯 Shiroha Pose Estimation Demo</title>
   <style>
     :root {
       --primary: #3b82f6; --success: #22c55e; --warning: #f59e0b; --danger: #ef4444;
@@ -38,8 +38,11 @@
 
     /* 视频区域 */
     .video-section { background: var(--card); border-radius: 12px; border: 1px solid var(--border); overflow: hidden; }
-    .tabs { display: flex; border-bottom: 1px solid var(--border); background: rgba(0,0,0,0.2); flex-wrap: wrap; }
-    .tab-btn { padding: 0.75rem 1rem; background: none; border: none; color: var(--text-dim); cursor: pointer; font-size: 0.9rem; border-bottom: 2px solid transparent; transition: all 0.2s; }
+    .tabs { display: flex; border-bottom: 1px solid var(--border); background: rgba(0,0,0,0.2); flex-wrap: nowrap; overflow-x: auto; }
+    .tabs::-webkit-scrollbar { height: 4px; }
+    .tabs::-webkit-scrollbar-track { background: transparent; }
+    .tabs::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+    .tab-btn { padding: 0.75rem 1rem; background: none; border: none; color: var(--text-dim); cursor: pointer; font-size: 0.85rem; border-bottom: 2px solid transparent; transition: all 0.2s; white-space: nowrap; flex-shrink: 0; }
     .tab-btn:hover { color: var(--text); }
     .tab-btn.active { color: var(--primary); border-bottom-color: var(--primary); font-weight: 500; }
 
@@ -47,7 +50,7 @@
     .video-container.active { display: flex; }
     .video-container img { max-width: 100%; max-height: 100%; object-fit: contain; }
     .video-placeholder { color: var(--text-dim); text-align: center; padding: 2rem; font-size: 0.9rem; }
-    .video-overlay { position: absolute; top: 0.5rem; left: 0.5rem; padding: 0.25rem 0.5rem; background: rgba(0,0,0,0.7); border-radius: 4px; font-size: 0.75rem; color: var(--text-dim); }
+    .video-overlay { position: absolute; top: 0.5rem; left: 0.5rem; padding: 0.25rem 0.5rem; background: rgba(0,0,0,0.7); border-radius: 4px; font-size: 0.75rem; color: var(--text-dim); z-index: 10; }
 
     /* 状态面板 */
     .status-panel { background: var(--card); border-radius: 12px; border: 1px solid var(--border); padding: 1rem; display: flex; flex-direction: column; gap: 1rem; max-height: 600px; overflow-y: auto; }
@@ -71,12 +74,18 @@
     .risk-bar { height: 8px; background: var(--border); border-radius: 4px; overflow: hidden; margin-top: 0.5rem; }
     .risk-fill { height: 100%; background: linear-gradient(90deg, var(--success), var(--warning), var(--danger)); transition: width 0.3s ease; border-radius: 4px; }
 
-    /* 图像加载状态指示器 */
-    .img-loading { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: var(--text-dim); font-size: 0.875rem; }
+    /* 图像加载状态 */
+    .img-loading { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: var(--text-dim); font-size: 0.875rem; z-index: 5; }
     .img-loaded { border: 2px solid var(--success); }
     .img-error { border: 2px solid var(--danger); }
 
     .hidden { display: none !important; }
+
+    /* 响应式优化 */
+    @media (max-width: 768px) {
+      .control-panel { grid-template-columns: 1fr 1fr; }
+      .status-panel { max-height: none; }
+    }
   </style>
 </head>
 <body>
@@ -132,15 +141,24 @@
     <div class="main-content">
       <!-- 视频展示区 -->
       <div class="video-section">
+        <!-- 🔥 标签页：11 个模式（10 服务端 + 1 本地）-->
         <div class="tabs">
-          <button class="tab-btn active" data-mode="original">📷 原始画面</button>
+          <button class="tab-btn active" data-mode="original">📷 本地预览</button>
           <button class="tab-btn" data-mode="fall_detector">🚨 摔倒检测</button>
           <button class="tab-btn" data-mode="pose_monitoring">🧍 姿态监控</button>
-          <button class="tab-btn" data-mode="intrusion">🚧 入侵检测</button>
-          <button class="tab-btn" data-mode="activity">🏃 活动分析</button>
+          <button class="tab-btn" data-mode="face_recognition">👤 人脸识别</button>
+          <button class="tab-btn" data-mode="emotion_detection">😊 情绪识别</button>
+          <button class="tab-btn" data-mode="intrusion_detection">🚧 入侵检测</button>
+          <button class="tab-btn" data-mode="loitering_detection">🔄 徘徊检测</button>
+          <button class="tab-btn" data-mode="static_detection">⏸️ 静止检测</button>
+          <button class="tab-btn" data-mode="vigorous_activity">⚡ 剧烈活动</button>
+          <button class="tab-btn" data-mode="activity_level">📈 活动等级</button>
+          <button class="tab-btn" data-mode="motion_capture">🎬 原始+水印</button>
         </div>
 
-        <!-- 原始画面 -->
+        <!-- ============ 视频容器（ID 必须 = video-{mode}）=========== -->
+
+        <!-- 1. 本地预览（不依赖服务端）-->
         <div class="video-container active" id="video-original">
           <video id="localVideo" autoplay playsinline muted></video>
           <canvas id="captureCanvas" class="hidden"></canvas>
@@ -148,35 +166,90 @@
           <div class="video-overlay">Local Camera</div>
         </div>
 
-        <!-- 渲染画面模板（其他模式同理） -->
+        <!-- 2. fall_detector -->
         <div class="video-container" id="video-fall_detector">
           <img id="render-fall_detector" alt="Fall Detector" style="display:none">
           <div class="img-loading" id="loading-fall_detector">⏳ 等待图像...</div>
-          <div class="video-placeholder" id="placeholder-fall_detector">等待服务端推送渲染画面...</div>
+          <div class="video-placeholder" id="placeholder-fall_detector">等待服务端推送...</div>
           <div class="video-overlay">Server: Fall Detector</div>
         </div>
+
+        <!-- 3. pose_monitoring -->
         <div class="video-container" id="video-pose_monitoring">
           <img id="render-pose_monitoring" alt="Pose Monitoring" style="display:none">
           <div class="img-loading" id="loading-pose_monitoring">⏳ 等待图像...</div>
-          <div class="video-placeholder" id="placeholder-pose_monitoring">等待服务端推送渲染画面...</div>
+          <div class="video-placeholder" id="placeholder-pose_monitoring">等待服务端推送...</div>
           <div class="video-overlay">Server: Pose Monitoring</div>
         </div>
-        <div class="video-container" id="video-intrusion">
-          <img id="render-intrusion" alt="Intrusion Detection" style="display:none">
-          <div class="img-loading" id="loading-intrusion">⏳ 等待图像...</div>
-          <div class="video-placeholder" id="placeholder-intrusion">等待服务端推送渲染画面...</div>
+
+        <!-- 4. face_recognition -->
+        <div class="video-container" id="video-face_recognition">
+          <img id="render-face_recognition" alt="Face Recognition" style="display:none">
+          <div class="img-loading" id="loading-face_recognition">⏳ 等待图像...</div>
+          <div class="video-placeholder" id="placeholder-face_recognition">等待服务端推送...</div>
+          <div class="video-overlay">Server: Face Recognition</div>
+        </div>
+
+        <!-- 5. emotion_detection -->
+        <div class="video-container" id="video-emotion_detection">
+          <img id="render-emotion_detection" alt="Emotion Detection" style="display:none">
+          <div class="img-loading" id="loading-emotion_detection">⏳ 等待图像...</div>
+          <div class="video-placeholder" id="placeholder-emotion_detection">等待服务端推送...</div>
+          <div class="video-overlay">Server: Emotion Detection</div>
+        </div>
+
+        <!-- 6. intrusion_detection -->
+        <div class="video-container" id="video-intrusion_detection">
+          <img id="render-intrusion_detection" alt="Intrusion Detection" style="display:none">
+          <div class="img-loading" id="loading-intrusion_detection">⏳ 等待图像...</div>
+          <div class="video-placeholder" id="placeholder-intrusion_detection">等待服务端推送...</div>
           <div class="video-overlay">Server: Intrusion Detection</div>
         </div>
-        <div class="video-container" id="video-activity">
-          <img id="render-activity" alt="Activity Analysis" style="display:none">
-          <div class="img-loading" id="loading-activity">⏳ 等待图像...</div>
-          <div class="video-placeholder" id="placeholder-activity">等待服务端推送渲染画面...</div>
-          <div class="video-overlay">Server: Activity Analysis</div>
+
+        <!-- 7. loitering_detection -->
+        <div class="video-container" id="video-loitering_detection">
+          <img id="render-loitering_detection" alt="Loitering Detection" style="display:none">
+          <div class="img-loading" id="loading-loitering_detection">⏳ 等待图像...</div>
+          <div class="video-placeholder" id="placeholder-loitering_detection">等待服务端推送...</div>
+          <div class="video-overlay">Server: Loitering Detection</div>
+        </div>
+
+        <!-- 8. static_detection -->
+        <div class="video-container" id="video-static_detection">
+          <img id="render-static_detection" alt="Static Detection" style="display:none">
+          <div class="img-loading" id="loading-static_detection">⏳ 等待图像...</div>
+          <div class="video-placeholder" id="placeholder-static_detection">等待服务端推送...</div>
+          <div class="video-overlay">Server: Static Detection</div>
+        </div>
+
+        <!-- 9. vigorous_activity -->
+        <div class="video-container" id="video-vigorous_activity">
+          <img id="render-vigorous_activity" alt="Vigorous Activity" style="display:none">
+          <div class="img-loading" id="loading-vigorous_activity">⏳ 等待图像...</div>
+          <div class="video-placeholder" id="placeholder-vigorous_activity">等待服务端推送...</div>
+          <div class="video-overlay">Server: Vigorous Activity</div>
+        </div>
+
+        <!-- 10. activity_level -->
+        <div class="video-container" id="video-activity_level">
+          <img id="render-activity_level" alt="Activity Level" style="display:none">
+          <div class="img-loading" id="loading-activity_level">⏳ 等待图像...</div>
+          <div class="video-placeholder" id="placeholder-activity_level">等待服务端推送...</div>
+          <div class="video-overlay">Server: Activity Level</div>
+        </div>
+
+        <!-- 11. motion_capture -->
+        <div class="video-container" id="video-motion_capture">
+          <img id="render-motion_capture" alt="Motion Capture" style="display:none">
+          <div class="img-loading" id="loading-motion_capture">⏳ 等待图像...</div>
+          <div class="video-placeholder" id="placeholder-motion_capture">等待服务端推送...</div>
+          <div class="video-overlay">Server: Motion Capture</div>
         </div>
       </div>
 
       <!-- 状态面板 -->
       <div class="status-panel">
+        <!-- 摔倒检测状态 -->
         <div class="status-card" id="fallCard">
           <div class="status-title">🚨 摔倒检测</div>
           <div class="status-value" id="fallStatus">未检测</div>
@@ -187,43 +260,72 @@
           </div>
         </div>
 
+        <!-- 分析统计 -->
         <div class="status-card">
-          <div class="status-title">📊 分析状态</div>
+          <div class="status-title">📊 分析统计</div>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.5rem;font-size:0.875rem">
-            <div>👥 检测人数: <strong id="poseCount">0</strong></div>
+            <div>👥 姿态数: <strong id="poseCount">0</strong></div>
+            <div>👤 人脸数: <strong id="faceCount">0</strong></div>
             <div>⏱ 延迟: <strong id="latency">-</strong>ms</div>
             <div>📦 帧大小: <strong id="frameSize">-</strong>KB</div>
-            <div>🔄 FPS: <strong id="actualFps">0</strong></div>
+            <div>🔄 实际 FPS: <strong id="actualFps">0</strong></div>
+            <div>🎯 订阅模式: <strong id="subscribedCount">0</strong></div>
           </div>
         </div>
 
+        <!-- JSON 原始数据 -->
         <div class="status-card">
           <div class="status-title">📋 原始 JSON 数据</div>
           <div class="json-output" id="jsonOutput">{}</div>
         </div>
 
+        <!-- 运行日志 -->
         <div class="status-card">
           <div class="status-title">📝 运行日志</div>
           <div class="log-output" id="logOutput">
             <div class="log-entry info">系统就绪，等待连接...</div>
           </div>
+          <button id="clearLog" style="margin-top:0.5rem;padding:0.25rem 0.5rem;font-size:0.75rem;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text-dim);cursor:pointer">🧹 清空日志</button>
         </div>
 
+        <!-- 🔥 订阅模式复选框（value 必须与服务端完全一致！）-->
         <div class="status-card">
           <div class="status-title">🔔 订阅渲染模式</div>
-          <div style="display:flex;flex-wrap:wrap;gap:0.5rem;margin-top:0.5rem">
-            <label style="display:flex;align-items:center;gap:0.25rem;font-size:0.875rem">
-              <input type="checkbox" class="mode-sub" value="fall_detector" checked> 摔倒检测
+          <div style="display:flex;flex-wrap:wrap;gap:0.4rem;margin-top:0.5rem;max-height:140px;overflow-y:auto;padding-right:4px">
+            <label style="display:flex;align-items:center;gap:0.25rem;font-size:0.8rem;cursor:pointer">
+              <input type="checkbox" class="mode-sub" value="fall_detector" checked> 🚨摔倒
             </label>
-            <label style="display:flex;align-items:center;gap:0.25rem;font-size:0.875rem">
-              <input type="checkbox" class="mode-sub" value="pose_monitoring" checked> 姿态监控
+            <label style="display:flex;align-items:center;gap:0.25rem;font-size:0.8rem;cursor:pointer">
+              <input type="checkbox" class="mode-sub" value="pose_monitoring" checked> 🧍姿态
             </label>
-            <label style="display:flex;align-items:center;gap:0.25rem;font-size:0.875rem">
-              <input type="checkbox" class="mode-sub" value="intrusion"> 入侵检测
+            <label style="display:flex;align-items:center;gap:0.25rem;font-size:0.8rem;cursor:pointer">
+              <input type="checkbox" class="mode-sub" value="face_recognition"> 👤人脸
             </label>
-            <label style="display:flex;align-items:center;gap:0.25rem;font-size:0.875rem">
-              <input type="checkbox" class="mode-sub" value="activity"> 活动分析
+            <label style="display:flex;align-items:center;gap:0.25rem;font-size:0.8rem;cursor:pointer">
+              <input type="checkbox" class="mode-sub" value="emotion_detection"> 😊情绪
             </label>
+            <label style="display:flex;align-items:center;gap:0.25rem;font-size:0.8rem;cursor:pointer">
+              <input type="checkbox" class="mode-sub" value="intrusion_detection"> 🚧入侵
+            </label>
+            <label style="display:flex;align-items:center;gap:0.25rem;font-size:0.8rem;cursor:pointer">
+              <input type="checkbox" class="mode-sub" value="loitering_detection"> 🔄徘徊
+            </label>
+            <label style="display:flex;align-items:center;gap:0.25rem;font-size:0.8rem;cursor:pointer">
+              <input type="checkbox" class="mode-sub" value="static_detection"> ⏸️静止
+            </label>
+            <label style="display:flex;align-items:center;gap:0.25rem;font-size:0.8rem;cursor:pointer">
+              <input type="checkbox" class="mode-sub" value="vigorous_activity"> ⚡剧烈
+            </label>
+            <label style="display:flex;align-items:center;gap:0.25rem;font-size:0.8rem;cursor:pointer">
+              <input type="checkbox" class="mode-sub" value="activity_level"> 📈等级
+            </label>
+            <label style="display:flex;align-items:center;gap:0.25rem;font-size:0.8rem;cursor:pointer">
+              <input type="checkbox" class="mode-sub" value="motion_capture"> 🎬水印
+            </label>
+          </div>
+          <div style="display:flex;gap:0.5rem;margin-top:0.5rem">
+            <button id="selectAllModes" style="flex:1;padding:0.25rem;font-size:0.75rem;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text);cursor:pointer">全选</button>
+            <button id="clearAllModes" style="flex:1;padding:0.25rem;font-size:0.75rem;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text);cursor:pointer">清空</button>
           </div>
         </div>
       </div>
@@ -231,6 +333,13 @@
   </div>
 
   <script>
+    /**
+     * Shiroha WebSocket Client - Fixed Version
+     * ✅ 10 种分析模式完整支持
+     * ✅ 模式名称与服务端完全一致
+     * ✅ 最小改动保留原有架构
+     */
+
     // ==================== 工具函数 ====================
 
     function generateUUID() {
@@ -253,6 +362,8 @@
 
     function updateStatus(data) {
       if (!data) return;
+
+      // 摔倒状态
       if (data.fall_detected !== undefined) {
         const fallEl = document.getElementById('fallStatus');
         const fallCard = document.getElementById('fallCard');
@@ -266,22 +377,35 @@
           fallCard.classList.remove('fall-alert');
         }
       }
+
+      // 风险分值
       if (data.fall_risk_score !== undefined) {
         const score = Math.max(0, Math.min(100, data.fall_risk_score));
         document.getElementById('riskScore').textContent = score;
         document.getElementById('riskFill').style.width = `${score}%`;
       }
+
+      // 其他状态字段
       if (data.fall_state) document.getElementById('fallState').textContent = data.fall_state;
       if (data.pose_count !== undefined) document.getElementById('poseCount').textContent = data.pose_count;
+      if (data.face_count !== undefined) document.getElementById('faceCount').textContent = data.face_count;
+
+      // 延迟计算
       if (data.timestamp) {
         const latency = Date.now() - data.timestamp * 1000;
         document.getElementById('latency').textContent = latency > 0 ? Math.round(latency) : '-';
       }
+
+      // JSON 显示
       document.getElementById('jsonOutput').textContent = JSON.stringify(data, null, 2);
     }
 
-    // ✅ 修复核心：正确的图像更新函数
+    /**
+     * 🔥 核心修复：更新渲染图像
+     * 确保 mode 名称与 HTML 元素 ID 完全匹配
+     */
     function updateRender(mode, base64Data) {
+      // 元素选择器模板
       const img = document.getElementById(`render-${mode}`);
       const placeholder = document.getElementById(`placeholder-${mode}`);
       const loading = document.getElementById(`loading-${mode}`);
@@ -297,56 +421,57 @@
       if (placeholder) placeholder.classList.add('hidden');
       img.classList.remove('img-error');
 
-      // 创建临时 Image 对象预加载，避免直接设置 src 失败无反馈
+      // 预加载避免闪烁
       const tempImg = new Image();
 
       tempImg.onload = function() {
         log(`✅ Image loaded: ${mode} (${tempImg.width}x${tempImg.height})`, 'success');
 
-        // 切换到目标 Tab 时才显示图像（避免后台加载不可见）
+        // 只在目标 Tab 激活时显示图像
         if (container?.classList.contains('active')) {
-          img.style.display = 'block';
-          if (loading) loading.classList.add('hidden');
-          img.classList.add('img-loaded');
-          // 移除旧 src 避免内存泄漏
-          if (img.src && img.src.startsWith('blob:')) URL.revokeObjectURL(img.src);
-          img.src = tempImg.src;
+          showImage(img, tempImg.src, loading, placeholder);
         } else {
           // 后台预加载完成，标记为就绪
           img.dataset.ready = 'true';
-          img.dataset.src = tempImg.src;  // 缓存 src
+          img.dataset.src = tempImg.src;
           if (loading) loading.textContent = '✅ 图像就绪 (切换标签查看)';
           log(`📦 Image preloaded (background): ${mode}`, 'info');
         }
       };
 
       tempImg.onerror = function(e) {
-        log(`❌ Image load failed: ${mode} - ${e}`, 'error');
+        log(`❌ Image load failed: ${mode}`, 'error');
         if (loading) loading.textContent = '❌ 加载失败';
         if (placeholder) placeholder.classList.remove('hidden');
         img.classList.add('img-error');
-
-        // 调试：尝试直接设置看看是否有效
-        try {
-          const directSrc = `data:image/jpeg;base64,${base64Data.substring(0, 100)}...`;
-          console.warn('⚠️ First 100 chars of base64:', base64Data.substring(0, 100));
-        } catch (err) {
-          console.error('Debug error:', err);
-        }
+        console.warn('Base64 preview:', base64Data?.substring(0, 100) + '...');
       };
 
-      // ✅ 关键修复：正确拼接 data URL（移除 # 时间戳！）
+      // 拼接 data URL
       try {
         const dataUrl = `data:image/jpeg;base64,${base64Data}`;
         tempImg.src = dataUrl;
-        log(`🔄 Loading image: ${mode} (base64 length: ${base64Data.length})`);
+        log(`🔄 Loading: ${mode} (base64 length: ${base64Data?.length || 0})`);
       } catch (err) {
         log(`❌ Failed to create data URL: ${err.message}`, 'error');
         if (loading) loading.textContent = '❌ 格式错误';
       }
     }
 
-    // ==================== WebSocket 客户端 ====================
+    // 显示图像的辅助函数（避免重复代码）
+    function showImage(img, src, loading, placeholder) {
+      // 释放旧 ObjectURL
+      if (img.src && img.src.startsWith('blob:')) {
+        URL.revokeObjectURL(img.src);
+      }
+      img.src = src;
+      img.style.display = 'block';
+      if (loading) loading.classList.add('hidden');
+      if (placeholder) placeholder.classList.add('hidden');
+      img.classList.add('img-loaded');
+    }
+
+    // ==================== WebSocket 客户端类 ====================
 
     class ShirohaClient {
       constructor(config) {
@@ -355,9 +480,10 @@
           uuid: generateUUID(),
           fps: 10,
           quality: 75,
-          modes: ['fall_detector', 'pose_monitoring'],
+          modes: ['fall_detector', 'pose_monitoring'], // 默认订阅
           ...config
         };
+
         this.ws = null;
         this.stream = null;
         this.video = null;
@@ -369,13 +495,22 @@
         this.lastFpsUpdate = Date.now();
         this.reconnectAttempts = 0;
         this.maxReconnect = 5;
+
+        // 🔥 服务端标准模式列表（用于验证）
+        this.validModes = [
+          'fall_detector', 'pose_monitoring', 'face_recognition', 'emotion_detection',
+          'intrusion_detection', 'loitering_detection', 'static_detection',
+          'vigorous_activity', 'activity_level', 'motion_capture'
+        ];
       }
 
+      // 初始化 DOM 和事件绑定
       initDOM() {
         this.video = document.getElementById('localVideo');
         this.canvas = document.getElementById('captureCanvas');
         this.ctx = this.canvas.getContext('2d');
 
+        // UUID 输入
         const uuidInput = document.getElementById('uuid');
         if (!uuidInput.value) uuidInput.value = this.config.uuid;
         uuidInput.addEventListener('change', (e) => {
@@ -383,13 +518,34 @@
           log(`UUID 更新: ${this.config.uuid}`);
         });
 
+        // 按钮事件
         document.getElementById('connectBtn').onclick = () => this.toggleConnection();
         document.getElementById('startBtn').onclick = () => this.startStreaming();
         document.getElementById('stopBtn').onclick = () => this.stopStreaming();
-        document.querySelectorAll('.mode-sub').forEach(cb => cb.onchange = () => this.updateSubscriptions());
-        document.querySelectorAll('.tab-btn').forEach(btn => btn.onclick = (e) => this.switchTab(e.target.dataset.mode));
+        document.getElementById('clearLog').onclick = () => this.clearLog();
+        document.getElementById('selectAllModes').onclick = () => this.setAllModes(true);
+        document.getElementById('clearAllModes').onclick = () => this.setAllModes(false);
+
+        // 模式订阅变更
+        document.querySelectorAll('.mode-sub').forEach(cb => {
+          cb.onchange = () => {
+            this.updateSubscriptions();
+            document.getElementById('subscribedCount').textContent =
+              document.querySelectorAll('.mode-sub:checked').length;
+          };
+        });
+
+        // 标签页切换
+        document.querySelectorAll('.tab-btn').forEach(btn => {
+          btn.onclick = (e) => this.switchTab(e.target.dataset.mode);
+        });
+
+        // 初始化订阅计数
+        document.getElementById('subscribedCount').textContent =
+          document.querySelectorAll('.mode-sub:checked').length;
       }
 
+      // 连接/断开切换
       async toggleConnection() {
         const btn = document.getElementById('connectBtn');
         const statusEl = document.getElementById('connectionStatus');
@@ -399,6 +555,7 @@
           return;
         }
 
+        // 读取配置
         this.config.wsUrl = document.getElementById('wsUrl').value;
         this.config.uuid = document.getElementById('uuid').value || generateUUID();
         this.config.fps = parseInt(document.getElementById('fps').value);
@@ -424,87 +581,130 @@
         }
       }
 
+      // 建立 WebSocket 连接
       connect() {
         return new Promise((resolve, reject) => {
           this.ws = new WebSocket(this.config.wsUrl);
-          this.ws.onopen = () => { this.reconnectAttempts = 0; this.sendRegister(); resolve(); };
+          this.ws.binaryType = 'arraybuffer';
+
+          this.ws.onopen = () => {
+            this.reconnectAttempts = 0;
+            this.sendRegister();
+            resolve();
+          };
           this.ws.onmessage = (event) => this.handleMessage(event);
-          this.ws.onclose = (event) => { log(`🔌 连接关闭: ${event.code} ${event.reason}`, 'warn'); this.onDisconnected(); };
-          this.ws.onerror = (error) => { log(`❌ WebSocket 错误`, 'error'); reject(error); };
+          this.ws.onclose = (event) => {
+            log(`🔌 连接关闭: ${event.code} ${event.reason || ''}`, 'warn');
+            this.onDisconnected();
+          };
+          this.ws.onerror = (error) => {
+            log(`❌ WebSocket 错误`, 'error');
+            reject(error);
+          };
         });
       }
 
+      // 发送注册消息
       sendRegister() {
-        const modes = Array.from(document.querySelectorAll('.mode-sub:checked')).map(cb => cb.value);
+        const modes = this.getSelectedModes();
         const message = {
           action: 'register',
           uuid: this.config.uuid,
           config: {
-            width: 960, height: 720,
+            width: 960,
+            height: 720,
             modes: modes,
             output_format: { image: true, json: true }
           }
         };
         this.ws.send(JSON.stringify(message));
-        log(`📤 发送注册: uuid=${this.config.uuid}, modes=[${modes.join(', ')}]`);
+        log(`📤 注册: uuid=${this.config.uuid.substring(0,8)}..., modes=[${modes.join(', ')}]`);
       }
 
+      // 获取选中的模式列表
+      getSelectedModes() {
+        return Array.from(document.querySelectorAll('.mode-sub:checked'))
+          .map(cb => cb.value)
+          .filter(mode => this.validModes.includes(mode)); // 过滤无效模式
+      }
+
+      // 更新订阅（重新注册）
       updateSubscriptions() {
         if (this.ws?.readyState !== WebSocket.OPEN) return;
-        const modes = Array.from(document.querySelectorAll('.mode-sub:checked')).map(cb => cb.value);
+        const modes = this.getSelectedModes();
         this.config.modes = modes;
-        this.sendRegister();  // 重新注册更新订阅
+        this.sendRegister();
         log(`🔄 更新订阅: [${modes.join(', ')}]`);
       }
 
+      // 全选/清空模式
+      setAllModes(checked) {
+        document.querySelectorAll('.mode-sub').forEach(cb => cb.checked = checked);
+        this.updateSubscriptions();
+        document.getElementById('subscribedCount').textContent =
+          checked ? this.validModes.length : 0;
+        log(`📋 ${checked ? '全选' : '清空'} 模式`);
+      }
+
+      // 处理 WebSocket 消息
       handleMessage(event) {
-        // 🔍 调试：打印原始消息类型和长度
-        if (typeof event.data === 'string') {
-          console.log(`📥 TEXT message: ${event.data.substring(0, 200)}...`);
-        } else if (event.data instanceof Blob) {
-          console.log(`📥 BLOB message: ${event.data.size} bytes`);
-        } else if (event.data instanceof ArrayBuffer) {
-          console.log(`📥 ARRAYBUFFER: ${event.data.byteLength} bytes`);
-        }
-
         try {
-          const msg = JSON.parse(event.data);
-          console.log(`🔍 Parsed: type=${msg.type}, mode=${msg.mode}, uuid=${msg.uuid?.substring(0,8)}...`);
+          // 文本消息（JSON）
+          if (typeof event.data === 'string') {
+            const msg = JSON.parse(event.data);
 
-          if (msg.type === 'ack') {
-            log(`✅ 注册确认: ${msg.status}`);
+            // 调试日志
+            if (msg.type === 'render') {
+              console.log(`🎨 [RENDER] mode=${msg.mode}, len=${msg.frame?.length}, ts=${msg.timestamp}`);
+            }
+
+            // 消息类型分发
+            switch (msg.type) {
+              case 'ack':
+                log(`✅ 注册确认: ${msg.status}`);
+                break;
+
+              case 'status':
+                if (msg.data) updateStatus(msg.data);
+                break;
+
+              case 'render':
+                // 🔥 关键：只有当 mode 有效且 frame 存在时才处理
+                if (msg.mode && msg.frame && this.validModes.includes(msg.mode)) {
+                  updateRender(msg.mode, msg.frame);
+                } else if (msg.mode) {
+                  log(`⚠️ Unknown/invalid mode: ${msg.mode}`, 'warn');
+                }
+                break;
+
+              case 'error':
+                log(`⚠️ 服务端错误: ${msg.message}`, 'warn');
+                if (msg.traceback) console.error(msg.traceback);
+                break;
+
+              default:
+                log(`❓ 未知消息类型: ${msg.type}`, 'warn');
+            }
             return;
           }
 
-          if (msg.type === 'status' && msg.data) {
-            updateStatus(msg.data);
-            return;
+          // 二进制消息（暂不支持，服务端只发文本）
+          if (event.data instanceof ArrayBuffer) {
+            log(`📦 收到二进制消息: ${event.data.byteLength} bytes`, 'info');
           }
-
-          // ✅ 关键：接收 render 消息
-          if (msg.type === 'render' && msg.mode && msg.frame) {
-            log(`🎨 Received render: mode=${msg.mode}, frame_len=${msg.frame.length}`);
-            updateRender(msg.mode, msg.frame);
-            return;
-          }
-
-          if (msg.type === 'error') {
-            log(`⚠️ 服务端错误: ${msg.message}`, 'warn');
-            if (msg.traceback) console.error(msg.traceback);
-            return;
-          }
-
-          log(`❓ 未知消息: type=${msg.type}`, 'warn');
 
         } catch (err) {
-          log(`❌ 消息解析失败: ${err.message}`, 'error');
+          log(`❌ 消息处理失败: ${err.message}`, 'error');
           console.error('Raw data:', event.data);
         }
       }
 
+      // 断开连接后的处理
       onDisconnected() {
         this.isStreaming = false;
         this.stopSending();
+
+        // 更新 UI
         const btn = document.getElementById('connectBtn');
         const statusEl = document.getElementById('connectionStatus');
         btn.textContent = '🔌 连接';
@@ -515,6 +715,7 @@
         statusEl.textContent = '未连接';
         statusEl.className = 'status-badge status-disconnected';
 
+        // 自动重连
         if (this.reconnectAttempts < this.maxReconnect) {
           this.reconnectAttempts++;
           const delay = Math.min(1000 * Math.pow(2, this.reconnectAttempts), 10000);
@@ -523,20 +724,33 @@
         }
       }
 
+      // 启动摄像头和推流
       async startStreaming() {
         if (this.isStreaming) return;
-        if (this.ws?.readyState !== WebSocket.OPEN) { log('❌ 请先连接 WebSocket', 'error'); return; }
+        if (this.ws?.readyState !== WebSocket.OPEN) {
+          log('❌ 请先连接 WebSocket', 'error');
+          return;
+        }
 
         try {
+          // 请求摄像头权限
           this.stream = await navigator.mediaDevices.getUserMedia({
-            video: { width: { ideal: 960 }, height: { ideal: 720 }, frameRate: { ideal: this.config.fps } },
+            video: {
+              width: { ideal: 960 },
+              height: { ideal: 720 },
+              frameRate: { ideal: this.config.fps }
+            },
             audio: false
           });
+
           this.video.srcObject = this.stream;
           await this.video.play();
+
+          // 设置 canvas 尺寸
           this.canvas.width = this.video.videoWidth || 960;
           this.canvas.height = this.video.videoHeight || 720;
 
+          // 显示本地预览
           document.getElementById('video-original').classList.add('active');
           document.getElementById('localVideo').style.display = 'block';
           document.querySelector('#video-original .video-placeholder')?.classList.add('hidden');
@@ -545,52 +759,88 @@
           document.getElementById('startBtn').disabled = true;
           document.getElementById('stopBtn').disabled = false;
           this.startSending();
+
           log(`📹 开始推流: ${this.canvas.width}x${this.canvas.height} @ ${this.config.fps}FPS`);
+
         } catch (err) {
           log(`❌ 摄像头启动失败: ${err.message}`, 'error');
-          alert('无法访问摄像头，请检查权限');
+          alert('无法访问摄像头，请检查权限或刷新页面重试');
         }
       }
 
+      // 停止推流
       stopStreaming() {
         if (!this.isStreaming) return;
         this.isStreaming = false;
         this.stopSending();
-        if (this.stream) { this.stream.getTracks().forEach(track => track.stop()); this.stream = null; }
+
+        if (this.stream) {
+          this.stream.getTracks().forEach(track => track.stop());
+          this.stream = null;
+        }
         this.video.srcObject = null;
         document.getElementById('localVideo').style.display = 'none';
         document.querySelector('#video-original .video-placeholder')?.classList.remove('hidden');
         document.getElementById('startBtn').disabled = false;
         document.getElementById('stopBtn').disabled = true;
+
         log('⏹ 已停止推流');
       }
 
+      // 启动定时发送
       startSending() {
         this.stopSending();
         const interval = 1000 / this.config.fps;
+
         this.sendInterval = setInterval(() => {
-          if (!this.isStreaming || this.ws?.readyState !== WebSocket.OPEN) { this.stopSending(); return; }
+          if (!this.isStreaming || this.ws?.readyState !== WebSocket.OPEN) {
+            this.stopSending();
+            return;
+          }
           this.sendFrame();
         }, interval);
+
         log(`⏱ 发送定时器: ${this.config.fps}FPS`);
       }
 
-      stopSending() { if (this.sendInterval) { clearInterval(this.sendInterval); this.sendInterval = null; } }
+      // 停止发送
+      stopSending() {
+        if (this.sendInterval) {
+          clearInterval(this.sendInterval);
+          this.sendInterval = null;
+        }
+      }
 
+      // 发送单帧
       sendFrame() {
         if (!this.ctx || !this.video.videoWidth) return;
+
+        // 绘制到 canvas
         this.ctx.drawImage(this.video, 0, 0, this.canvas.width, this.canvas.height);
+
+        // 编码为 JPEG
         this.canvas.toBlob((blob) => {
-          if (!blob) { log('❌ 帧编码失败', 'error'); return; }
+          if (!blob) {
+            log('❌ 帧编码失败', 'error');
+            return;
+          }
+
           const reader = new FileReader();
           reader.onload = () => {
             const frameData = reader.result;
-            const uuidBytes = new TextEncoder().encode(this.config.uuid.padEnd(36).slice(0, 36));
+
+            // 构造二进制消息: [36 字节 UUID][JPEG 数据]
+            const uuidBytes = new TextEncoder().encode(
+              this.config.uuid.padEnd(36).slice(0, 36)
+            );
             const message = new Uint8Array(uuidBytes.length + frameData.byteLength);
             message.set(uuidBytes, 0);
             message.set(new Uint8Array(frameData), uuidBytes.length);
+
+            // 发送
             this.ws.send(message);
 
+            // 统计
             this.frameCount++;
             const now = Date.now();
             if (now - this.lastFpsUpdate >= 1000) {
@@ -605,43 +855,85 @@
         }, 'image/jpeg', this.config.quality / 100);
       }
 
+      // 切换标签页
       switchTab(mode) {
-        document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.toggle('active', btn.dataset.mode === mode));
-        document.querySelectorAll('.video-container').forEach(c => c.classList.remove('active'));
-        document.getElementById(`video-${mode}`).classList.add('active');
+        // 更新标签激活状态
+        document.querySelectorAll('.tab-btn').forEach(btn =>
+          btn.classList.toggle('active', btn.dataset.mode === mode)
+        );
 
-        // 🔥 关键：切换 Tab 时，如果图像已预加载完成，立即显示
+        // 切换视频容器
+        document.querySelectorAll('.video-container').forEach(c => c.classList.remove('active'));
+        const targetContainer = document.getElementById(`video-${mode}`);
+        if (targetContainer) {
+          targetContainer.classList.add('active');
+        }
+
+        // 🔥 关键：如果图像已预加载，立即显示
         const img = document.getElementById(`render-${mode}`);
         const placeholder = document.getElementById(`placeholder-${mode}`);
         const loading = document.getElementById(`loading-${mode}`);
 
         if (img?.dataset.ready === 'true' && img.dataset.src) {
-          log(`🖼️ Showing preloaded image: ${mode}`);
-          img.src = img.dataset.src;
-          img.style.display = 'block';
-          if (loading) loading.classList.add('hidden');
-          if (placeholder) placeholder.classList.add('hidden');
-          img.classList.add('img-loaded');
+          log(`🖼️ 显示预加载图像: ${mode}`);
+          showImage(img, img.dataset.src, loading, placeholder);
+          // 清除预加载标记
+          delete img.dataset.ready;
+          delete img.dataset.src;
         }
 
-        log(`📺 切换到模式: ${mode}`);
+        log(`📺 切换到: ${mode}`);
       }
 
+      // 清空日志
+      clearLog() {
+        const logEl = document.getElementById('logOutput');
+        logEl.innerHTML = '<div class="log-entry info">🧹 日志已清空</div>';
+        log('日志已清空');
+      }
+
+      // 清理资源
       destroy() {
         this.stopStreaming();
         if (this.ws?.readyState === WebSocket.OPEN) this.ws.close();
         if (this.sendInterval) clearInterval(this.sendInterval);
+
+        // 释放所有 ObjectURL
+        document.querySelectorAll('img[id^="render-"]').forEach(img => {
+          if (img.src?.startsWith('blob:')) {
+            URL.revokeObjectURL(img.src);
+          }
+        });
       }
     }
 
     // ==================== 初始化 ====================
+
     let client = null;
+
     document.addEventListener('DOMContentLoaded', () => {
+      // 创建客户端实例
       client = new ShirohaClient();
       client.initDOM();
+
+      // 页面卸载时清理
       window.addEventListener('beforeunload', () => client?.destroy());
-      document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && client?.isStreaming) client.stopStreaming(); });
-      log('🎯 Demo 页面加载完成 (Fixed Version)');
+
+      // ESC 键停止推流
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && client?.isStreaming) {
+          client.stopStreaming();
+          log('⌨️ ESC: 停止推流');
+        }
+      });
+
+      // 自动填充 UUID
+      if (!document.getElementById('uuid').value) {
+        document.getElementById('uuid').value = generateUUID();
+      }
+
+      log('🎯 Demo 页面加载完成 (✅ Fixed Version)');
+      log('💡 提示: 勾选模式 → 连接 → 开始推流 → 切换标签查看结果');
     });
   </script>
 </body>
