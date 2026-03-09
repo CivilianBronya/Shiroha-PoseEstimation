@@ -7,8 +7,6 @@ from face.head_pose import HeadPose
 from rig.skeleton import SkeletonSolver
 from rig.face_solver import FaceSolver, MODE_SINGLE, MODE_MULTI
 
-from output.json_out import JsonOutput
-
 from render.single_stickman_renderer import SingleStickmanRenderer
 from render.multi_stickman_renderer import MultiStickmanRenderer
 from render.fall_detector_renderer import FallDetectorRenderer
@@ -50,7 +48,6 @@ body_single = BodyPose(num_poses=config["pose"]["single"]["num_poses"])
 body_multi = BodyPose(num_poses=config["pose"]["multi"]["num_poses"])
 head = HeadPose()
 solver = SkeletonSolver(filter_alpha=config["skeleton"]["filter_alpha"])
-out = JsonOutput()
 Single_renderer = SingleStickmanRenderer()
 
 # 使用配置初始化渲染器
@@ -108,9 +105,8 @@ while True:
         # 解算单人骨架
         if body_pts_list is not None:
             body_pts_dict = {i: pt for i, pt in enumerate(body_pts_list)}
-            head_rot = head.detect(frame)  # HeadPose 也可能需要当前帧
+            head_rot = head.detect(frame)
             skeleton = solver.solve(body_pts_dict, head_rot)
-            out.send(skeleton)  # 发送单人数据
 
     # MotionCapture 窗口
     cam.show(frame)
