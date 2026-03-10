@@ -9,6 +9,7 @@ class ServerConfig:
     """服务端配置（加载自 config.json）"""
     host: str = "0.0.0.0"
     port: int = 8765
+    mjpeg_port: int = 8766  # 🔥 新增：MJPEG 服务端口
     session_timeout: float = 300.0
     jpeg_quality: int = 75
 
@@ -35,6 +36,7 @@ class ServerConfig:
         return cls(
             host=data.get('server', {}).get('host', '0.0.0.0'),
             port=data.get('server', {}).get('port', 8765),
+            mjpeg_port=data.get('server', {}).get('mjpeg_port', 8766),  # 🔥 新增
             session_timeout=data.get('server', {}).get('session_timeout', 300),
             jpeg_quality=data.get('server', {}).get('jpeg_quality', 75),
             pose_model_path=data.get('pose', {}).get('model_path', 'models/pose_landmarker_full.task'),
@@ -47,3 +49,8 @@ class ServerConfig:
             detection=data.get('detection', {}),
             modes=data.get('modes', [])
         )
+
+    # 🔥 可选：添加 .get() 兼容方法（方便临时修复旧代码）
+    def get(self, key: str, default=None):
+        """兼容 dict.get() 用法"""
+        return getattr(self, key, default)

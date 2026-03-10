@@ -103,6 +103,10 @@
         <input type="text" id="wsUrl" value="ws://localhost:8765" placeholder="ws://host:port">
       </div>
       <div class="control-group">
+        <label>MJPEG 地址</label>
+        <input type="text" id="mjpegUrl" value="http://localhost:8766" placeholder="http://host:port">
+      </div>
+      <div class="control-group">
         <label>UUID (设备标识)</label>
         <input type="text" id="uuid" placeholder="自动生成或自定义">
       </div>
@@ -166,84 +170,85 @@
           <div class="video-overlay">Local Camera</div>
         </div>
 
-        <!-- 2. fall_detector -->
+        <!-- 2-11. 服务端渲染画面（MJPEG 流，动态设置 src）-->
+        <!-- fall_detector -->
         <div class="video-container" id="video-fall_detector">
-          <img id="render-fall_detector" alt="Fall Detector" style="display:none">
+          <img id="render-fall_detector" alt="Fall Detector" style="display:none" data-mode="fall_detector">
           <div class="img-loading" id="loading-fall_detector">⏳ 等待图像...</div>
-          <div class="video-placeholder" id="placeholder-fall_detector">等待服务端推送...</div>
-          <div class="video-overlay">Server: Fall Detector</div>
+          <div class="video-placeholder" id="placeholder-fall_detector">连接后自动加载</div>
+          <div class="video-overlay">Server: Fall Detector (MJPEG)</div>
         </div>
 
-        <!-- 3. pose_monitoring -->
+        <!-- pose_monitoring -->
         <div class="video-container" id="video-pose_monitoring">
-          <img id="render-pose_monitoring" alt="Pose Monitoring" style="display:none">
+          <img id="render-pose_monitoring" alt="Pose Monitoring" style="display:none" data-mode="pose_monitoring">
           <div class="img-loading" id="loading-pose_monitoring">⏳ 等待图像...</div>
-          <div class="video-placeholder" id="placeholder-pose_monitoring">等待服务端推送...</div>
-          <div class="video-overlay">Server: Pose Monitoring</div>
+          <div class="video-placeholder" id="placeholder-pose_monitoring">连接后自动加载</div>
+          <div class="video-overlay">Server: Pose Monitoring (MJPEG)</div>
         </div>
 
-        <!-- 4. face_recognition -->
+        <!-- face_recognition -->
         <div class="video-container" id="video-face_recognition">
-          <img id="render-face_recognition" alt="Face Recognition" style="display:none">
+          <img id="render-face_recognition" alt="Face Recognition" style="display:none" data-mode="face_recognition">
           <div class="img-loading" id="loading-face_recognition">⏳ 等待图像...</div>
-          <div class="video-placeholder" id="placeholder-face_recognition">等待服务端推送...</div>
-          <div class="video-overlay">Server: Face Recognition</div>
+          <div class="video-placeholder" id="placeholder-face_recognition">连接后自动加载</div>
+          <div class="video-overlay">Server: Face Recognition (MJPEG)</div>
         </div>
 
-        <!-- 5. emotion_detection -->
+        <!-- emotion_detection -->
         <div class="video-container" id="video-emotion_detection">
-          <img id="render-emotion_detection" alt="Emotion Detection" style="display:none">
+          <img id="render-emotion_detection" alt="Emotion Detection" style="display:none" data-mode="emotion_detection">
           <div class="img-loading" id="loading-emotion_detection">⏳ 等待图像...</div>
-          <div class="video-placeholder" id="placeholder-emotion_detection">等待服务端推送...</div>
-          <div class="video-overlay">Server: Emotion Detection</div>
+          <div class="video-placeholder" id="placeholder-emotion_detection">连接后自动加载</div>
+          <div class="video-overlay">Server: Emotion Detection (MJPEG)</div>
         </div>
 
-        <!-- 6. intrusion_detection -->
+        <!-- intrusion_detection -->
         <div class="video-container" id="video-intrusion_detection">
-          <img id="render-intrusion_detection" alt="Intrusion Detection" style="display:none">
+          <img id="render-intrusion_detection" alt="Intrusion Detection" style="display:none" data-mode="intrusion_detection">
           <div class="img-loading" id="loading-intrusion_detection">⏳ 等待图像...</div>
-          <div class="video-placeholder" id="placeholder-intrusion_detection">等待服务端推送...</div>
-          <div class="video-overlay">Server: Intrusion Detection</div>
+          <div class="video-placeholder" id="placeholder-intrusion_detection">连接后自动加载</div>
+          <div class="video-overlay">Server: Intrusion Detection (MJPEG)</div>
         </div>
 
-        <!-- 7. loitering_detection -->
+        <!-- loitering_detection -->
         <div class="video-container" id="video-loitering_detection">
-          <img id="render-loitering_detection" alt="Loitering Detection" style="display:none">
+          <img id="render-loitering_detection" alt="Loitering Detection" style="display:none" data-mode="loitering_detection">
           <div class="img-loading" id="loading-loitering_detection">⏳ 等待图像...</div>
-          <div class="video-placeholder" id="placeholder-loitering_detection">等待服务端推送...</div>
-          <div class="video-overlay">Server: Loitering Detection</div>
+          <div class="video-placeholder" id="placeholder-loitering_detection">连接后自动加载</div>
+          <div class="video-overlay">Server: Loitering Detection (MJPEG)</div>
         </div>
 
-        <!-- 8. static_detection -->
+        <!-- static_detection -->
         <div class="video-container" id="video-static_detection">
-          <img id="render-static_detection" alt="Static Detection" style="display:none">
+          <img id="render-static_detection" alt="Static Detection" style="display:none" data-mode="static_detection">
           <div class="img-loading" id="loading-static_detection">⏳ 等待图像...</div>
-          <div class="video-placeholder" id="placeholder-static_detection">等待服务端推送...</div>
-          <div class="video-overlay">Server: Static Detection</div>
+          <div class="video-placeholder" id="placeholder-static_detection">连接后自动加载</div>
+          <div class="video-overlay">Server: Static Detection (MJPEG)</div>
         </div>
 
-        <!-- 9. vigorous_activity -->
+        <!-- vigorous_activity -->
         <div class="video-container" id="video-vigorous_activity">
-          <img id="render-vigorous_activity" alt="Vigorous Activity" style="display:none">
+          <img id="render-vigorous_activity" alt="Vigorous Activity" style="display:none" data-mode="vigorous_activity">
           <div class="img-loading" id="loading-vigorous_activity">⏳ 等待图像...</div>
-          <div class="video-placeholder" id="placeholder-vigorous_activity">等待服务端推送...</div>
-          <div class="video-overlay">Server: Vigorous Activity</div>
+          <div class="video-placeholder" id="placeholder-vigorous_activity">连接后自动加载</div>
+          <div class="video-overlay">Server: Vigorous Activity (MJPEG)</div>
         </div>
 
-        <!-- 10. activity_level -->
+        <!-- activity_level -->
         <div class="video-container" id="video-activity_level">
-          <img id="render-activity_level" alt="Activity Level" style="display:none">
+          <img id="render-activity_level" alt="Activity Level" style="display:none" data-mode="activity_level">
           <div class="img-loading" id="loading-activity_level">⏳ 等待图像...</div>
-          <div class="video-placeholder" id="placeholder-activity_level">等待服务端推送...</div>
-          <div class="video-overlay">Server: Activity Level</div>
+          <div class="video-placeholder" id="placeholder-activity_level">连接后自动加载</div>
+          <div class="video-overlay">Server: Activity Level (MJPEG)</div>
         </div>
 
-        <!-- 11. motion_capture -->
+        <!-- motion_capture -->
         <div class="video-container" id="video-motion_capture">
-          <img id="render-motion_capture" alt="Motion Capture" style="display:none">
+          <img id="render-motion_capture" alt="Motion Capture" style="display:none" data-mode="motion_capture">
           <div class="img-loading" id="loading-motion_capture">⏳ 等待图像...</div>
-          <div class="video-placeholder" id="placeholder-motion_capture">等待服务端推送...</div>
-          <div class="video-overlay">Server: Motion Capture</div>
+          <div class="video-placeholder" id="placeholder-motion_capture">连接后自动加载</div>
+          <div class="video-overlay">Server: Motion Capture (MJPEG)</div>
         </div>
       </div>
 
@@ -334,10 +339,9 @@
 
   <script>
     /**
-     * Shiroha WebSocket Client - Fixed Version
-     * ✅ 10 种分析模式完整支持
+     * Shiroha Client - MJPEG Edition
+     * ✅ WebSocket 推流 + HTTP MJPEG 拉流
      * ✅ 模式名称与服务端完全一致
-     * ✅ 最小改动保留原有架构
      */
 
     // ==================== 工具函数 ====================
@@ -363,7 +367,6 @@
     function updateStatus(data) {
       if (!data) return;
 
-      // 摔倒状态
       if (data.fall_detected !== undefined) {
         const fallEl = document.getElementById('fallStatus');
         const fallCard = document.getElementById('fallCard');
@@ -378,97 +381,22 @@
         }
       }
 
-      // 风险分值
       if (data.fall_risk_score !== undefined) {
         const score = Math.max(0, Math.min(100, data.fall_risk_score));
         document.getElementById('riskScore').textContent = score;
         document.getElementById('riskFill').style.width = `${score}%`;
       }
 
-      // 其他状态字段
       if (data.fall_state) document.getElementById('fallState').textContent = data.fall_state;
       if (data.pose_count !== undefined) document.getElementById('poseCount').textContent = data.pose_count;
       if (data.face_count !== undefined) document.getElementById('faceCount').textContent = data.face_count;
 
-      // 延迟计算
       if (data.timestamp) {
         const latency = Date.now() - data.timestamp * 1000;
         document.getElementById('latency').textContent = latency > 0 ? Math.round(latency) : '-';
       }
 
-      // JSON 显示
       document.getElementById('jsonOutput').textContent = JSON.stringify(data, null, 2);
-    }
-
-    /**
-     * 🔥 核心修复：更新渲染图像
-     * 确保 mode 名称与 HTML 元素 ID 完全匹配
-     */
-    function updateRender(mode, base64Data) {
-      // 元素选择器模板
-      const img = document.getElementById(`render-${mode}`);
-      const placeholder = document.getElementById(`placeholder-${mode}`);
-      const loading = document.getElementById(`loading-${mode}`);
-      const container = document.getElementById(`video-${mode}`);
-
-      if (!img) {
-        log(`❌ Image element not found: render-${mode}`, 'error');
-        return;
-      }
-
-      // 显示加载状态
-      if (loading) loading.classList.remove('hidden');
-      if (placeholder) placeholder.classList.add('hidden');
-      img.classList.remove('img-error');
-
-      // 预加载避免闪烁
-      const tempImg = new Image();
-
-      tempImg.onload = function() {
-        log(`✅ Image loaded: ${mode} (${tempImg.width}x${tempImg.height})`, 'success');
-
-        // 只在目标 Tab 激活时显示图像
-        if (container?.classList.contains('active')) {
-          showImage(img, tempImg.src, loading, placeholder);
-        } else {
-          // 后台预加载完成，标记为就绪
-          img.dataset.ready = 'true';
-          img.dataset.src = tempImg.src;
-          if (loading) loading.textContent = '✅ 图像就绪 (切换标签查看)';
-          log(`📦 Image preloaded (background): ${mode}`, 'info');
-        }
-      };
-
-      tempImg.onerror = function(e) {
-        log(`❌ Image load failed: ${mode}`, 'error');
-        if (loading) loading.textContent = '❌ 加载失败';
-        if (placeholder) placeholder.classList.remove('hidden');
-        img.classList.add('img-error');
-        console.warn('Base64 preview:', base64Data?.substring(0, 100) + '...');
-      };
-
-      // 拼接 data URL
-      try {
-        const dataUrl = `data:image/jpeg;base64,${base64Data}`;
-        tempImg.src = dataUrl;
-        log(`🔄 Loading: ${mode} (base64 length: ${base64Data?.length || 0})`);
-      } catch (err) {
-        log(`❌ Failed to create data URL: ${err.message}`, 'error');
-        if (loading) loading.textContent = '❌ 格式错误';
-      }
-    }
-
-    // 显示图像的辅助函数（避免重复代码）
-    function showImage(img, src, loading, placeholder) {
-      // 释放旧 ObjectURL
-      if (img.src && img.src.startsWith('blob:')) {
-        URL.revokeObjectURL(img.src);
-      }
-      img.src = src;
-      img.style.display = 'block';
-      if (loading) loading.classList.add('hidden');
-      if (placeholder) placeholder.classList.add('hidden');
-      img.classList.add('img-loaded');
     }
 
     // ==================== WebSocket 客户端类 ====================
@@ -477,10 +405,11 @@
       constructor(config) {
         this.config = {
           wsUrl: 'ws://localhost:8765',
+          mjpegUrl: 'http://localhost:8766',  // 🔥 MJPEG 服务地址
           uuid: generateUUID(),
           fps: 10,
           quality: 75,
-          modes: ['fall_detector', 'pose_monitoring'], // 默认订阅
+          modes: ['fall_detector', 'pose_monitoring'],
           ...config
         };
 
@@ -495,8 +424,8 @@
         this.lastFpsUpdate = Date.now();
         this.reconnectAttempts = 0;
         this.maxReconnect = 5;
+        this.activeMjpegStreams = {};  // mode -> img element
 
-        // 🔥 服务端标准模式列表（用于验证）
         this.validModes = [
           'fall_detector', 'pose_monitoring', 'face_recognition', 'emotion_detection',
           'intrusion_detection', 'loitering_detection', 'static_detection',
@@ -504,13 +433,11 @@
         ];
       }
 
-      // 初始化 DOM 和事件绑定
       initDOM() {
         this.video = document.getElementById('localVideo');
         this.canvas = document.getElementById('captureCanvas');
         this.ctx = this.canvas.getContext('2d');
 
-        // UUID 输入
         const uuidInput = document.getElementById('uuid');
         if (!uuidInput.value) uuidInput.value = this.config.uuid;
         uuidInput.addEventListener('change', (e) => {
@@ -518,7 +445,13 @@
           log(`UUID 更新: ${this.config.uuid}`);
         });
 
-        // 按钮事件
+        const mjpegInput = document.getElementById('mjpegUrl');
+        if (!mjpegInput.value) mjpegInput.value = this.config.mjpegUrl;
+        mjpegInput.addEventListener('change', (e) => {
+          this.config.mjpegUrl = e.target.value.replace(/\/$/, '');
+          log(`MJPEG URL 更新: ${this.config.mjpegUrl}`);
+        });
+
         document.getElementById('connectBtn').onclick = () => this.toggleConnection();
         document.getElementById('startBtn').onclick = () => this.startStreaming();
         document.getElementById('stopBtn').onclick = () => this.stopStreaming();
@@ -526,7 +459,6 @@
         document.getElementById('selectAllModes').onclick = () => this.setAllModes(true);
         document.getElementById('clearAllModes').onclick = () => this.setAllModes(false);
 
-        // 模式订阅变更
         document.querySelectorAll('.mode-sub').forEach(cb => {
           cb.onchange = () => {
             this.updateSubscriptions();
@@ -535,17 +467,14 @@
           };
         });
 
-        // 标签页切换
         document.querySelectorAll('.tab-btn').forEach(btn => {
           btn.onclick = (e) => this.switchTab(e.target.dataset.mode);
         });
 
-        // 初始化订阅计数
         document.getElementById('subscribedCount').textContent =
           document.querySelectorAll('.mode-sub:checked').length;
       }
 
-      // 连接/断开切换
       async toggleConnection() {
         const btn = document.getElementById('connectBtn');
         const statusEl = document.getElementById('connectionStatus');
@@ -555,8 +484,8 @@
           return;
         }
 
-        // 读取配置
         this.config.wsUrl = document.getElementById('wsUrl').value;
+        this.config.mjpegUrl = document.getElementById('mjpegUrl').value.replace(/\/$/, '');
         this.config.uuid = document.getElementById('uuid').value || generateUUID();
         this.config.fps = parseInt(document.getElementById('fps').value);
         this.config.quality = parseInt(document.getElementById('quality').value);
@@ -573,6 +502,7 @@
           statusEl.className = 'status-badge status-connected';
           document.getElementById('startBtn').disabled = false;
           log(`✅ 已连接到 ${this.config.wsUrl}`);
+          log(`📺 MJPEG 地址: ${this.config.mjpegUrl}`);
         } catch (err) {
           log(`❌ 连接失败: ${err.message}`, 'error');
           statusEl.textContent = '连接失败';
@@ -581,7 +511,6 @@
         }
       }
 
-      // 建立 WebSocket 连接
       connect() {
         return new Promise((resolve, reject) => {
           this.ws = new WebSocket(this.config.wsUrl);
@@ -604,7 +533,6 @@
         });
       }
 
-      // 发送注册消息
       sendRegister() {
         const modes = this.getSelectedModes();
         const message = {
@@ -621,14 +549,12 @@
         log(`📤 注册: uuid=${this.config.uuid.substring(0,8)}..., modes=[${modes.join(', ')}]`);
       }
 
-      // 获取选中的模式列表
       getSelectedModes() {
         return Array.from(document.querySelectorAll('.mode-sub:checked'))
           .map(cb => cb.value)
-          .filter(mode => this.validModes.includes(mode)); // 过滤无效模式
+          .filter(mode => this.validModes.includes(mode));
       }
 
-      // 更新订阅（重新注册）
       updateSubscriptions() {
         if (this.ws?.readyState !== WebSocket.OPEN) return;
         const modes = this.getSelectedModes();
@@ -637,7 +563,6 @@
         log(`🔄 更新订阅: [${modes.join(', ')}]`);
       }
 
-      // 全选/清空模式
       setAllModes(checked) {
         document.querySelectorAll('.mode-sub').forEach(cb => cb.checked = checked);
         this.updateSubscriptions();
@@ -646,49 +571,84 @@
         log(`📋 ${checked ? '全选' : '清空'} 模式`);
       }
 
-      // 处理 WebSocket 消息
+      // 🔥 启动 MJPEG 流
+      startMjpegStreams() {
+        const modes = this.getSelectedModes();
+        const baseUrl = `${this.config.mjpegUrl}/stream/${this.config.uuid}`;
+
+        modes.forEach(mode => {
+          const img = document.getElementById(`render-${mode}`);
+          if (!img) return;
+
+          // 构建流 URL（加时间戳避免缓存）
+          const streamUrl = `${baseUrl}?mode=${mode}&t=${Date.now()}`;
+
+          // 设置图片源（浏览器自动处理 MJPEG 流）
+          img.src = streamUrl;
+          img.style.display = 'block';
+
+          img.onload = () => {
+            log(`📺 MJPEG stream started: ${mode}`, 'success');
+            document.getElementById(`loading-${mode}`)?.classList.add('hidden');
+            document.getElementById(`placeholder-${mode}`)?.classList.add('hidden');
+          };
+
+          img.onerror = (e) => {
+            log(`❌ MJPEG stream error: ${mode}`, 'error');
+            document.getElementById(`loading-${mode}`).textContent = '❌ 流加载失败';
+            console.error('Stream error:', e);
+          };
+
+          this.activeMjpegStreams[mode] = img;
+        });
+
+        log(`🎬 Started ${modes.length} MJPEG streams`);
+      }
+
+      // 🔥 停止 MJPEG 流
+      stopMjpegStreams() {
+        Object.values(this.activeMjpegStreams).forEach(img => {
+          if (img.src) {
+            img.src = '';  // 断开连接
+            img.style.display = 'none';
+          }
+        });
+        this.activeMjpegStreams = {};
+        log('🛑 MJPEG streams stopped');
+      }
+
       handleMessage(event) {
         try {
-          // 文本消息（JSON）
           if (typeof event.data === 'string') {
             const msg = JSON.parse(event.data);
 
-            // 调试日志
-            if (msg.type === 'render') {
-              console.log(`🎨 [RENDER] mode=${msg.mode}, len=${msg.frame?.length}, ts=${msg.timestamp}`);
-            }
-
-            // 消息类型分发
             switch (msg.type) {
               case 'ack':
                 log(`✅ 注册确认: ${msg.status}`);
+                // 注册成功后自动启动 MJPEG 流
+                if (msg.status === 'registered' && this.isStreaming) {
+                  this.startMjpegStreams();
+                }
                 break;
 
               case 'status':
                 if (msg.data) updateStatus(msg.data);
                 break;
 
-              case 'render':
-                // 🔥 关键：只有当 mode 有效且 frame 存在时才处理
-                if (msg.mode && msg.frame && this.validModes.includes(msg.mode)) {
-                  updateRender(msg.mode, msg.frame);
-                } else if (msg.mode) {
-                  log(`⚠️ Unknown/invalid mode: ${msg.mode}`, 'warn');
-                }
-                break;
+              // ❌ 不再处理 render 消息（改用 MJPEG）
+              // case 'render':
+              //   updateRender(msg.mode, msg.frame);
+              //   break;
 
               case 'error':
                 log(`⚠️ 服务端错误: ${msg.message}`, 'warn');
-                if (msg.traceback) console.error(msg.traceback);
                 break;
 
               default:
                 log(`❓ 未知消息类型: ${msg.type}`, 'warn');
             }
-            return;
           }
 
-          // 二进制消息（暂不支持，服务端只发文本）
           if (event.data instanceof ArrayBuffer) {
             log(`📦 收到二进制消息: ${event.data.byteLength} bytes`, 'info');
           }
@@ -699,12 +659,11 @@
         }
       }
 
-      // 断开连接后的处理
       onDisconnected() {
         this.isStreaming = false;
         this.stopSending();
+        this.stopMjpegStreams();  // 🔥 停止 MJPEG 流
 
-        // 更新 UI
         const btn = document.getElementById('connectBtn');
         const statusEl = document.getElementById('connectionStatus');
         btn.textContent = '🔌 连接';
@@ -715,7 +674,6 @@
         statusEl.textContent = '未连接';
         statusEl.className = 'status-badge status-disconnected';
 
-        // 自动重连
         if (this.reconnectAttempts < this.maxReconnect) {
           this.reconnectAttempts++;
           const delay = Math.min(1000 * Math.pow(2, this.reconnectAttempts), 10000);
@@ -724,7 +682,6 @@
         }
       }
 
-      // 启动摄像头和推流
       async startStreaming() {
         if (this.isStreaming) return;
         if (this.ws?.readyState !== WebSocket.OPEN) {
@@ -733,7 +690,6 @@
         }
 
         try {
-          // 请求摄像头权限
           this.stream = await navigator.mediaDevices.getUserMedia({
             video: {
               width: { ideal: 960 },
@@ -746,11 +702,9 @@
           this.video.srcObject = this.stream;
           await this.video.play();
 
-          // 设置 canvas 尺寸
           this.canvas.width = this.video.videoWidth || 960;
           this.canvas.height = this.video.videoHeight || 720;
 
-          // 显示本地预览
           document.getElementById('video-original').classList.add('active');
           document.getElementById('localVideo').style.display = 'block';
           document.querySelector('#video-original .video-placeholder')?.classList.add('hidden');
@@ -758,7 +712,14 @@
           this.isStreaming = true;
           document.getElementById('startBtn').disabled = true;
           document.getElementById('stopBtn').disabled = false;
+
+          // 🔥 启动推流（只送分析，不等图像返回）
           this.startSending();
+
+          // 🔥 如果已注册，立即启动 MJPEG 流
+          if (this.ws?.readyState === WebSocket.OPEN) {
+            this.startMjpegStreams();
+          }
 
           log(`📹 开始推流: ${this.canvas.width}x${this.canvas.height} @ ${this.config.fps}FPS`);
 
@@ -768,11 +729,11 @@
         }
       }
 
-      // 停止推流
       stopStreaming() {
         if (!this.isStreaming) return;
         this.isStreaming = false;
         this.stopSending();
+        this.stopMjpegStreams();  // 🔥 停止 MJPEG 流
 
         if (this.stream) {
           this.stream.getTracks().forEach(track => track.stop());
@@ -787,7 +748,6 @@
         log('⏹ 已停止推流');
       }
 
-      // 启动定时发送
       startSending() {
         this.stopSending();
         const interval = 1000 / this.config.fps;
@@ -803,7 +763,6 @@
         log(`⏱ 发送定时器: ${this.config.fps}FPS`);
       }
 
-      // 停止发送
       stopSending() {
         if (this.sendInterval) {
           clearInterval(this.sendInterval);
@@ -811,14 +770,11 @@
         }
       }
 
-      // 发送单帧
       sendFrame() {
         if (!this.ctx || !this.video.videoWidth) return;
 
-        // 绘制到 canvas
         this.ctx.drawImage(this.video, 0, 0, this.canvas.width, this.canvas.height);
 
-        // 编码为 JPEG
         this.canvas.toBlob((blob) => {
           if (!blob) {
             log('❌ 帧编码失败', 'error');
@@ -829,7 +785,6 @@
           reader.onload = () => {
             const frameData = reader.result;
 
-            // 构造二进制消息: [36 字节 UUID][JPEG 数据]
             const uuidBytes = new TextEncoder().encode(
               this.config.uuid.padEnd(36).slice(0, 36)
             );
@@ -837,10 +792,8 @@
             message.set(uuidBytes, 0);
             message.set(new Uint8Array(frameData), uuidBytes.length);
 
-            // 发送
             this.ws.send(message);
 
-            // 统计
             this.frameCount++;
             const now = Date.now();
             if (now - this.lastFpsUpdate >= 1000) {
@@ -855,55 +808,31 @@
         }, 'image/jpeg', this.config.quality / 100);
       }
 
-      // 切换标签页
       switchTab(mode) {
-        // 更新标签激活状态
         document.querySelectorAll('.tab-btn').forEach(btn =>
           btn.classList.toggle('active', btn.dataset.mode === mode)
         );
 
-        // 切换视频容器
         document.querySelectorAll('.video-container').forEach(c => c.classList.remove('active'));
         const targetContainer = document.getElementById(`video-${mode}`);
         if (targetContainer) {
           targetContainer.classList.add('active');
         }
 
-        // 🔥 关键：如果图像已预加载，立即显示
-        const img = document.getElementById(`render-${mode}`);
-        const placeholder = document.getElementById(`placeholder-${mode}`);
-        const loading = document.getElementById(`loading-${mode}`);
-
-        if (img?.dataset.ready === 'true' && img.dataset.src) {
-          log(`🖼️ 显示预加载图像: ${mode}`);
-          showImage(img, img.dataset.src, loading, placeholder);
-          // 清除预加载标记
-          delete img.dataset.ready;
-          delete img.dataset.src;
-        }
-
         log(`📺 切换到: ${mode}`);
       }
 
-      // 清空日志
       clearLog() {
         const logEl = document.getElementById('logOutput');
         logEl.innerHTML = '<div class="log-entry info">🧹 日志已清空</div>';
         log('日志已清空');
       }
 
-      // 清理资源
       destroy() {
         this.stopStreaming();
+        this.stopMjpegStreams();
         if (this.ws?.readyState === WebSocket.OPEN) this.ws.close();
         if (this.sendInterval) clearInterval(this.sendInterval);
-
-        // 释放所有 ObjectURL
-        document.querySelectorAll('img[id^="render-"]').forEach(img => {
-          if (img.src?.startsWith('blob:')) {
-            URL.revokeObjectURL(img.src);
-          }
-        });
       }
     }
 
@@ -912,14 +841,11 @@
     let client = null;
 
     document.addEventListener('DOMContentLoaded', () => {
-      // 创建客户端实例
       client = new ShirohaClient();
       client.initDOM();
 
-      // 页面卸载时清理
       window.addEventListener('beforeunload', () => client?.destroy());
 
-      // ESC 键停止推流
       document.addEventListener('keydown', (e) => {
         if (e.key === 'Escape' && client?.isStreaming) {
           client.stopStreaming();
@@ -927,13 +853,13 @@
         }
       });
 
-      // 自动填充 UUID
       if (!document.getElementById('uuid').value) {
         document.getElementById('uuid').value = generateUUID();
       }
 
-      log('🎯 Demo 页面加载完成 (✅ Fixed Version)');
-      log('💡 提示: 勾选模式 → 连接 → 开始推流 → 切换标签查看结果');
+      log('🎯 Demo 页面加载完成 (✅ MJPEG Edition)');
+      log('💡 流程: 勾选模式 → 连接 → 开始推流 → 切换标签查看结果');
+      log('📺 视频流: <img> 直接加载 MJPEG，无需 JS 解码');
     });
   </script>
 </body>

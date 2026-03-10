@@ -206,13 +206,13 @@ class Session:
             }
 
         # === 5. 按需渲染图像（仅推送订阅的模式）===
+        render_frames = {}
         if self.output_image:
             for mode in self.subscribed_modes:
                 try:
                     render_frame = None
 
                     if mode == 'motion_capture':
-                        # 原始帧 + FPS 水印
                         render_frame = frame_bgr.copy()
                         cv2.putText(render_frame, f"UUID:{self.uuid[:8]}", (10, 30),
                                     cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
@@ -282,20 +282,29 @@ class Session:
                             debug_frame = renderer.draw(debug_frame, body_pts_list)
                         render_frame = debug_frame
 
-                    # 编码为 base64
-                    if render_frame is not None:
-                        b64 = encode_frame_to_base64(
-                            render_frame,
-                            quality=self.server_config.jpeg_quality
-                        )
-                        if b64:
-                            result['renders'][mode] = b64
+                    # 🔥 存储 numpy 数组（关键修复！）
+                    if render_frame is not None and render_frame.size > 0:
+                        render_frames[mode] = render_frame
 
                 except Exception as e:
                     logger.warning(f"Render error [{mode}] for {self.uuid}: {e}")
                     continue
 
+        # 🔥 返回 numpy 数组供 MJPEG 使用
+        result['render_frames'] = render_frames
+
+        # 🔥 可选：保留 base64 编码（如果还需要 WebSocket 推图像）
+        if self.output_image and self.output_json:
+            for mode, render_frame in render_frames.items():
+                try:
+                    b64 = encode_frame_to_base64(render_frame, quality=self.server_config.jpeg_quality)
+                    if b64:
+                        result['renders'][mode] = b64
+                except:
+                    pass
+
         return result
+
 
     def cleanup(self):
         """会话销毁时释放资源"""
