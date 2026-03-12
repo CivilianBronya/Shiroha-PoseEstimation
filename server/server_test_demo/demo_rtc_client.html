@@ -1,91 +1,105 @@
 <!DOCTYPE html>
-<html>
+<html lang="zh-CN">
 <head>
-    <title>Shiroha WebRTC High-Speed View</title>
-    <meta charset="utf-8">
+    <meta charset="UTF-8">
+    <title>Shiroha AI 视觉矩阵</title>
     <style>
-        #video-container {
-            width: 800px;
-            margin: 0 auto;
-            background: #000;
-        }
+        :root { --bg: #0f172a; --card: #1e293b; --accent: #3b82f6; }
+        body { background: var(--bg); color: #f8fafc; font-family: 'Segoe UI', sans-serif; margin: 0; }
 
-        video {
-            width: 100%;
-            height: auto;
-            border: 2px solid #333;
-        }
+        /* 顶部栏 */
+        .header { background: var(--card); padding: 15px 30px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #334155; }
+        .config-box { display: flex; gap: 10px; align-items: center; }
+        input { background: #0f172a; border: 1px solid #334155; color: white; padding: 8px; border-radius: 4px; width: 300px; }
 
-        .controls {
-            text-align: center;
+        /* 矩阵布局 */
+        .matrix-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 15px;
             padding: 20px;
+            max-width: 1200px;
+            margin: 0 auto;
         }
+        .video-card {
+            background: var(--card);
+            border-radius: 8px;
+            overflow: hidden;
+            border: 1px solid #334155;
+            position: relative;
+        }
+        .video-card video { width: 100%; aspect-ratio: 4/3; background: #000; display: block; }
+        .label { position: absolute; top: 10px; left: 10px; background: rgba(0,0,0,0.6); padding: 2px 8px; border-radius: 4px; font-size: 12px; }
+
+        button { background: var(--accent); color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; }
+        button:hover { opacity: 0.9; }
     </style>
 </head>
 <body>
-<div id="video-container">
-    <video id="video" autoplay playsinline muted></video>
+
+<div class="header">
+    <div style="font-size: 20px; font-weight: bold;">SHIROHA <span style="color:var(--accent)">MATRIX</span></div>
+    <div class="config-box">
+        <label>信令地址:</label>
+        <input type="text" id="api-url" value="http://127.0.0.1:5000/rtc_negotiate">
+        <button onclick="startAll()">初始化所有终端</button>
+    </div>
 </div>
-<div class="controls">
-    <button onclick="startStream('grid')">开启九宫格监控</button>
-    <button onclick="startStream('original')">查看原始流</button>
-</div>
+
+<div class="matrix-grid" id="grid">
+    </div>
 
 <script>
-    // 使用 async 函数封装，确保 pc 状态干净
-    async function startStream(mode) {
-        const videoElement = document.getElementById('video');
+    const grid = document.getElementById('grid');
+    const apiInput = document.getElementById('api-url');
+    const pcs = [];
 
-        // 1. 创建 PeerConnection
-        const pc = new RTCPeerConnection({
-            iceServers: [{urls: 'stun:stun.l.google.com:19302'}] // 基础 STUN 服务器
-        });
+    // 初始化生成 9 个播放卡片
+    for (let i = 1; i <= 9; i++) {
+        const div = document.createElement('div');
+        div.className = 'video-card';
+        div.innerHTML = `
+            <div class="label">Renderer Type ${i}</div>
+            <video id="v-${i}" autoplay playsinline muted></video>
+        `;
+        grid.appendChild(div);
+    }
 
-        // 2. 监听轨道事件
-        pc.ontrack = (event) => {
-            console.log("✅ 收到视频轨道");
-            videoElement.srcObject = event.streams[0];
-        };
+    async function startOne(id, mode) {
+        const video = document.getElementById(`v-${id}`);
+        const pc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
+        pcs.push(pc);
 
-        // 3. 创建 Offer
+        pc.ontrack = (e) => { video.srcObject = e.streams[0]; };
+        pc.addTransceiver('video', { direction: 'recvonly' });
+
         const offer = await pc.createOffer();
         await pc.setLocalDescription(offer);
 
-        // 🚀 关键改进：等待 ICE 收集完成（简单做法）
-        // 或者你可以监听 onicecandidate 逐个发送，但对于本地测试，等收集完最稳妥
-        await new Promise((resolve) => {
-            if (pc.iceGatheringState === 'complete') {
-                resolve();
-            } else {
-                function checkState() {
-                    if (pc.iceGatheringState === 'complete') {
-                        pc.removeEventListener('icegatheringstatechange', checkState);
-                        resolve();
-                    }
-                }
-
-                pc.addEventListener('icegatheringstatechange', checkState);
-            }
+        // 等待 ICE
+        await new Promise(r => {
+            if(pc.iceGatheringState==='complete') r();
+            else pc.onicegatheringstatechange = () => pc.iceGatheringState==='complete' && r();
         });
 
-        // 4. 发送包含完整 ICE 信息的 SDP
-        console.log("📡 发送 Offer 到 Flask...");
-        try {
-            const response = await fetch('/rtc_negotiate', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({
-                    sdp: pc.localDescription.sdp,
-                    type: pc.localDescription.type,
-                    mode: mode
-                })
-            });
+        const res = await fetch(apiInput.value, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ sdp: pc.localDescription.sdp, type: pc.localDescription.type, mode: mode })
+        });
 
-            const answer = await response.json();
-            console.log("📥 收到 Answer");
-            await pc.setRemoteDescription(new RTCSessionDescription(answer));
-        } catch (e) {
-            console.error("❌ 连接失败:", e);
+        const answer = await res.json();
+        await pc.setRemoteDescription(new RTCSessionDescription(answer));
+    }
+
+    function startAll() {
+        // 清理旧连接
+        pcs.forEach(p => p.close());
+        pcs.length = 0;
+
+        // 依次启动 9 路流
+        for (let i = 1; i <= 9; i++) {
+            startOne(i, `type${i}`);
         }
     }
 </script>

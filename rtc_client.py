@@ -1,70 +1,69 @@
+# -*- coding: utf-8 -*-
 import cv2
-import time
 import threading
+import time
 import requests
 from flask import Flask, render_template, request, jsonify
-from server.shm_manager import ShmManager  # 导入刚才定义的工具类
+from flask_cors import CORS
+from server.shm_manager import ShmManager
 
 app = Flask(__name__)
+CORS(app)
 
-# --- 1. 初始化共享内存 ---
-# 确保 shape 与处理端完全一致 (H, W, C)
+# --- 初始化共享内存 ---
 shm_node = ShmManager(name="shiroha_frame", shape=(480, 640, 3))
 frame_buffer = shm_node.create()
 
 
-# --- 2. 摄像头采集线程 ---
-def camera_producer():
-    cap = cv2.VideoCapture(0)
-    # 强制设置分辨率，确保与共享内存大小匹配
+def camera_worker():
+    """持续将摄像头帧写入共享内存"""
+    cap = cv2.VideoCapture(2)
     cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
     cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
 
-    print("📹 摄像头采集线程已启动...")
+    print("📹 摄像头采集已就绪...")
     try:
         while True:
             ret, frame = cap.read()
-            if not ret:
-                break
+            if not ret: break
 
-            # 🚀 零拷贝写入共享内存
-            # 使用 [:] 确保是在原有内存空间上覆盖数据
+            # 确保尺寸匹配
+            if frame.shape != (480, 640, 3):
+                frame = cv2.resize(frame, (640, 480))
+
             frame_buffer[:] = frame[:]
-
-            # 控制采集率，避免过度占用 CPU
-            time.sleep(0.01)
+            time.sleep(0.01)  # 约 60-100 FPS
     finally:
         cap.release()
-        shm_node.close()
 
-
-# 启动采集后台线程
-threading.Thread(target=camera_producer, daemon=True).start()
-
-
-# --- 3. 路由设置 ---
 
 @app.route('/')
 def index():
-    # 渲染刚才写的 index.html
-    return render_template('./server/server_test_demo/demo_rtc_client.html')
+    return render_template('index.html')
 
 
+# flask_app.py 中的 rtc_negotiate 修改
 @app.route('/rtc_negotiate', methods=['POST'])
 def rtc_negotiate():
-    """
-    信令中转站：前端 Offer -> Flask -> 本项目(8888) -> Flask -> 前端 Answer
-    """
-    client_offer = request.json
     try:
-        # 转发 SDP Offer 给处理端 (rtc_main.py)
-        # 注意：这里的 mode 参数也会被带过去
-        resp = requests.post("http://localhost:8888/offer", json=client_offer, timeout=5)
-        return jsonify(resp.json())
+        # 1. 增加超时时间到 15 秒
+        # 2. 确保使用的是 127.0.0.1 避免某些系统下 localhost 解析慢
+        response = requests.post(
+            "http://127.0.0.1:8888/offer",
+            json=request.json,
+            timeout=15
+        )
+        return jsonify(response.json())
+    except requests.exceptions.Timeout:
+        return jsonify({"error": "处理端响应超时，请检查 rtc_main 是否卡死"}), 504
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
 
 if __name__ == "__main__":
-    # 建议关闭 debug 模式，因为多线程/多进程在 debug 模式下可能会初始化两次共享内存
+    # 启动摄像头线程
+    t = threading.Thread(target=camera_worker, daemon=True)
+    t.start()
+
+    # 🚀 注意：debug=False 极其重要，防止双重初始化共享内存
     app.run(host='0.0.0.0', port=5000, debug=False)
