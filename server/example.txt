@@ -1,0 +1,40 @@
+// 客户端 → 服务端
+{
+  "action": "register",
+  "uuid": "user-abc123",
+  "config": {
+    "width": 960,
+    "height": 720,
+    "modes": ["fall_detector", "pose_monitoring"],
+    "output_format": {"image": true, "json": true}
+  }
+}
+
+// 服务端 → 客户端
+{
+  "type": "ack",
+  "uuid": "user-abc123",
+  "status": "registered"
+}
+
+// 状态数据（JSON）
+{
+  "uuid": "user-abc123",
+  "type": "status",
+  "data": {
+    "fall_detected": true,
+    "fall_risk_score": 85,
+    "fall_state": "GROUND",
+    "pose_count": 1,
+    "timestamp": 1710000123.456
+  }
+}
+
+// 渲染图像（base64）
+{
+  "uuid": "user-abc123",
+  "type": "render",
+  "mode": "fall_detector",
+  "timestamp": 1710000123.456,
+  "frame": "/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDA..."
+}
