@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Shiroha WebRTC High-Speed View</title>
+    <meta charset="utf-8">
+    <style>
+        #video-container {
+            width: 800px;
+            margin: 0 auto;
+            background: #000;
+        }
+
+        video {
+            width: 100%;
+            height: auto;
+            border: 2px solid #333;
+        }
+
+        .controls {
+            text-align: center;
+            padding: 20px;
+        }
+    </style>
+</head>
+<body>
+<div id="video-container">
+    <video id="video" autoplay playsinline muted></video>
+</div>
+<div class="controls">
+    <button onclick="startStream('grid')">开启九宫格监控</button>
+    <button onclick="startStream('original')">查看原始流</button>
+</div>
+
+<script>
+    // 使用 async 函数封装，确保 pc 状态干净
+    async function startStream(mode) {
+        const videoElement = document.getElementById('video');
+
+        // 1. 创建 PeerConnection
+        const pc = new RTCPeerConnection({
+            iceServers: [{urls: 'stun:stun.l.google.com:19302'}] // 基础 STUN 服务器
+        });
+
+        // 2. 监听轨道事件
+        pc.ontrack = (event) => {
+            console.log("✅ 收到视频轨道");
+            videoElement.srcObject = event.streams[0];
+        };
+
+        // 3. 创建 Offer
+        const offer = await pc.createOffer();
+        await pc.setLocalDescription(offer);
+
+        // 🚀 关键改进：等待 ICE 收集完成（简单做法）
+        // 或者你可以监听 onicecandidate 逐个发送，但对于本地测试，等收集完最稳妥
+        await new Promise((resolve) => {
+            if (pc.iceGatheringState === 'complete') {
+                resolve();
+            } else {
+                function checkState() {
+                    if (pc.iceGatheringState === 'complete') {
+                        pc.removeEventListener('icegatheringstatechange', checkState);
+                        resolve();
+                    }
+                }
+
+                pc.addEventListener('icegatheringstatechange', checkState);
+            }
+        });
+
+        // 4. 发送包含完整 ICE 信息的 SDP
+        console.log("📡 发送 Offer 到 Flask...");
+        try {
+            const response = await fetch('/rtc_negotiate', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    sdp: pc.localDescription.sdp,
+                    type: pc.localDescription.type,
+                    mode: mode
+                })
+            });
+
+            const answer = await response.json();
+            console.log("📥 收到 Answer");
+            await pc.setRemoteDescription(new RTCSessionDescription(answer));
+        } catch (e) {
+            console.error("❌ 连接失败:", e);
+        }
+    }
+</script>
+</body>
+</html>

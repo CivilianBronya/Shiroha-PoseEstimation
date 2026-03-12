@@ -809,18 +809,27 @@
       }
 
       switchTab(mode) {
-        document.querySelectorAll('.tab-btn').forEach(btn =>
-          btn.classList.toggle('active', btn.dataset.mode === mode)
-        );
+    // 1. 隐藏所有容器
+    document.querySelectorAll('.video-container').forEach(c => c.classList.remove('active'));
+    // 2. 清空所有流的 src 以断开连接，释放浏览器 Socket
+    document.querySelectorAll('.video-container img').forEach(img => {
+        img.src = "";
+        img.style.display = "none";
+    });
 
-        document.querySelectorAll('.video-container').forEach(c => c.classList.remove('active'));
-        const targetContainer = document.getElementById(`video-${mode}`);
-        if (targetContainer) {
-          targetContainer.classList.add('active');
-        }
+    // 3. 只给当前选中的 Tab 设置 src
+    const activeContainer = document.getElementById(`video-${mode}`);
+    activeContainer.classList.add('active');
 
-        log(`📺 切换到: ${mode}`);
-      }
+    if (mode !== 'original') {
+        const img = document.getElementById(`render-${mode}`);
+        const uuid = document.getElementById('uuid').value;
+        const mjpegBase = document.getElementById('mjpegUrl').value;
+        // 动态拼接 URL，让浏览器发起新连接
+        img.src = `${mjpegBase}/stream/${uuid}?mode=${mode}&t=${Date.now()}`;
+        img.style.display = "block";
+    }
+}
 
       clearLog() {
         const logEl = document.getElementById('logOutput');

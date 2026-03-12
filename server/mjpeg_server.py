@@ -1,210 +1,126 @@
 # -*- coding: utf-8 -*-
-"""
-HTTP MJPEG Stream Server
-浏览器用 <img src="http://host:8766/stream/{uuid}?mode=fall_detector"> 直接显示
-"""
 import asyncio
 import time
-from aiohttp import web
 import logging
+from aiohttp import web
 from typing import Dict, Optional
-from .frame_buffer import FrameBuffer
 
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("mjpeg_server")
 
 
-class MjpegServer:
-    """
-    MJPEG 流服务器
-    与 WebSocket 服务共享，通过 push_frame() 接收渲染帧
-    """
+class FrameBuffer:
+    """高效帧缓冲区：使用 Event 通知新帧到达"""
 
+    def __init__(self, max_age_sec: float = 5.0):
+        self.max_age_sec = max_age_sec
+        self.frames: Dict[str, bytes] = {}
+        self.timestamps: Dict[str, float] = {}
+        # 🚀 信号灯：一旦有新帧存入，立即触发等待的协程
+        self.new_frame_event = asyncio.Event()
+
+    def update(self, mode: str, jpeg_bytes: bytes):
+        self.frames[mode] = jpeg_bytes
+        self.timestamps[mode] = time.time()
+        # 触发事件唤醒所有 handle_stream 的循环
+        self.new_frame_event.set()
+        # 立即重置，准备迎接下一帧
+        self.new_frame_event.clear()
+
+    def get(self, mode: str) -> Optional[bytes]:
+        now = time.time()
+        ts = self.timestamps.get(mode, 0)
+        if now - ts > self.max_age_sec:
+            return None
+        return self.frames.get(mode)
+
+
+class MjpegServer:
     def __init__(self, host: str = "0.0.0.0", port: int = 8766):
         self.host = host
         self.port = port
         self.app = web.Application()
-        self.frame_buffers: Dict[str, FrameBuffer] = {}  # uuid -> FrameBuffer
-        self._lock = asyncio.Lock()
+        self.frame_buffers: Dict[str, FrameBuffer] = {}
         self._setup_routes()
 
     def _setup_routes(self):
-        """设置 HTTP 路由"""
+        """定义 HTTP 路由"""
         self.app.router.add_get('/stream/{uuid}', self.handle_stream)
-        self.app.router.add_get('/frame/{uuid}/{mode}', self.handle_single_frame)
         self.app.router.add_get('/health', self.handle_health)
-        self.app.router.add_get('/modes/{uuid}', self.handle_list_modes)
+        logger.info("✅ MJPEG routes configured")
 
     async def register_buffer(self, uuid: str):
-        """为 UUID 注册帧缓冲区"""
-        async with self._lock:
-            if uuid not in self.frame_buffers:
-                self.frame_buffers[uuid] = FrameBuffer(max_age_sec=10.0)
-                logger.info(f"📦 FrameBuffer registered: {uuid}")
+        if uuid not in self.frame_buffers:
+            self.frame_buffers[uuid] = FrameBuffer()
+            logger.info(f"📦 Registered MJPEG buffer: {uuid}")
 
     async def unregister_buffer(self, uuid: str):
-        """移除帧缓冲区"""
-        async with self._lock:
-            if uuid in self.frame_buffers:
-                self.frame_buffers[uuid].clear()
-                del self.frame_buffers[uuid]
-                logger.info(f"📦 FrameBuffer removed: {uuid}")
+        if uuid in self.frame_buffers:
+            del self.frame_buffers[uuid]
+            logger.info(f"🗑️ Unregistered MJPEG buffer: {uuid}")
 
-    async def push_frame(self, uuid: str, mode: str, jpeg_bytes: bytes):
-        """
-        从 WebSocket 服务推送渲染帧到缓冲区
-        供 MJPEG 流读取
-        """
-        async with self._lock:
-            if uuid not in self.frame_buffers:
-                await self.register_buffer(uuid)
+    def push_frame(self, uuid: str, mode: str, jpeg_bytes: bytes):
+        """同步非阻塞推送，由 ws_server 调用"""
+        if uuid in self.frame_buffers:
             self.frame_buffers[uuid].update(mode, jpeg_bytes)
 
     async def handle_stream(self, request: web.Request) -> web.StreamResponse:
-        """
-        MJPEG 流处理器
-        GET /stream/{uuid}?mode=fall_detector
-        """
+        """MJPEG 流处理器：实时推送渲染帧"""
         uuid = request.match_info['uuid']
         mode = request.query.get('mode', 'fall_detector')
 
-        logger.info(f"📺 MJPEG stream started: uuid={uuid[:8]}..., mode={mode}")
+        if uuid not in self.frame_buffers:
+            await self.register_buffer(uuid)
 
-        response = web.StreamResponse(
-            status=200,
-            reason='OK',
-            headers={
-                'Content-Type': 'multipart/x-mixed-replace; boundary=frame',
-                'Cache-Control': 'no-cache, no-store, must-revalidate',
-                'Pragma': 'no-cache',
-                'Expires': '0',
-                'Connection': 'keep-alive',
-                'Access-Control-Allow-Origin': '*',
-            }
-        )
+        buffer = self.frame_buffers[uuid]
 
+        response = web.StreamResponse(status=200, headers={
+            'Content-Type': 'multipart/x-mixed-replace; boundary=frame',
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            'Pragma': 'no-cache',
+            'Expires': '0',
+            'Connection': 'keep-alive',
+            'Access-Control-Allow-Origin': '*',
+        })
         await response.prepare(request)
 
-        # 获取/创建帧缓冲区
-        async with self._lock:
-            if uuid not in self.frame_buffers:
-                await self.register_buffer(uuid)
-            buffer = self.frame_buffers[uuid]
-
-        last_send_time = 0
-        frame_count = 0
-        max_fps = 30  # 限流避免浏览器卡死
+        logger.info(f"📺 MJPEG Stream Started: {uuid[:8]}... Mode: {mode}")
 
         try:
             while True:
-                # 获取最新帧
+                # 🚀 核心优化：阻塞等待直到新帧产生，0% CPU 占用
+                await buffer.new_frame_event.wait()
+
                 jpeg_bytes = buffer.get(mode)
-
                 if jpeg_bytes:
-                    # MJPEG 帧格式: --frame\r\nContent-Type: image/jpeg\r\n\r\n[JPEG 数据]\r\n
-                    frame_header = (
-                            b'--frame\r\n'
-                            b'Content-Type: image/jpeg\r\n'
-                            b'Content-Length: ' + str(len(jpeg_bytes)).encode() + b'\r\n\r\n'
-                    )
-                    frame_footer = b'\r\n'
+                    header = (b'--frame\r\n'
+                              b'Content-Type: image/jpeg\r\n'
+                              b'Content-Length: ' + str(len(jpeg_bytes)).encode() + b'\r\n\r\n')
+                    await response.write(header + jpeg_bytes + b'\r\n')
+                    # 🚀 强制将数据推入网络套接字，减少延迟
+                    await response.drain()
 
-                    await response.write(frame_header + jpeg_bytes + frame_footer)
-                    frame_count += 1
+                # 限制最大 FPS 约为 33，防止浏览器压力过大
+                await asyncio.sleep(0.03)
 
-                    # 限流：控制最大 FPS
-                    now = time.time()
-                    min_interval = 1.0 / max_fps
-                    elapsed = now - last_send_time
-                    if elapsed < min_interval:
-                        await asyncio.sleep(min_interval - elapsed)
-                    last_send_time = time.time()
-
-                    # 每 100 帧记录日志
-                    if frame_count % 100 == 0:
-                        logger.debug(f"📊 Stream stats: {frame_count} frames sent for {mode}")
-                else:
-                    # 无帧时短暂等待
-                    await asyncio.sleep(0.05)
-
-        except (asyncio.CancelledError, ConnectionResetError, BrokenPipeError,
-                ConnectionAbortedError):
-            logger.info(f"📺 MJPEG stream closed: uuid={uuid[:8]}..., mode={mode}")
+        except (asyncio.CancelledError, ConnectionResetError, BrokenPipeError):
+            logger.info(f"📺 MJPEG Stream Stopped: {uuid[:8]}...")
         except Exception as e:
-            logger.error(f"❌ Stream error: {e}", exc_info=True)
+            logger.error(f"❌ MJPEG Stream Error: {e}")
         finally:
-            await response.write_eof()
+            return response
 
-        return response
-
-    async def handle_single_frame(self, request: web.Request) -> web.Response:
-        """
-        获取单帧（用于轮询/调试模式）
-        GET /frame/{uuid}/{mode}
-        """
-        uuid = request.match_info['uuid']
-        mode = request.match_info['mode']
-
-        async with self._lock:
-            buffer = self.frame_buffers.get(uuid)
-
-        if not buffer:
-            return web.Response(status=404, text='Session not found')
-
-        jpeg_bytes = buffer.get(mode)
-        if not jpeg_bytes:
-            return web.Response(status=204, text='No frame available')
-
-        return web.Response(
-            body=jpeg_bytes,
-            content_type='image/jpeg',
-            headers={'Cache-Control': 'no-cache'}
-        )
-
-    async def handle_list_modes(self, request: web.Request) -> web.Response:
-        """
-        列出 UUID 可用的模式
-        GET /modes/{uuid}
-        """
-        uuid = request.match_info['uuid']
-
-        async with self._lock:
-            buffer = self.frame_buffers.get(uuid)
-
-        if not buffer:
-            return web.json_response({'error': 'Session not found'}, status=404)
-
-        available = list(buffer.get_latest().keys())
+    async def handle_health(self, request: web.Request):
+        """健康检查接口"""
         return web.json_response({
-            'uuid': uuid,
-            'available_modes': available
-        })
-
-    async def handle_health(self, request: web.Request) -> web.Response:
-        """健康检查"""
-        async with self._lock:
-            active_sessions = len(self.frame_buffers)
-        return web.json_response({
-            'status': 'ok',
-            'active_sessions': active_sessions,
-            'service': 'mjpeg-server',
-            'port': self.port
+            "status": "ok",
+            "active_buffers": len(self.frame_buffers),
+            "timestamp": time.time()
         })
 
     async def run(self):
-        """启动服务"""
+        """启动 aiohttp 服务"""
         runner = web.AppRunner(self.app)
         await runner.setup()
         site = web.TCPSite(runner, self.host, self.port)
         await site.start()
         logger.info(f"🚀 MJPEG server running at http://{self.host}:{self.port}")
-
-        # 保持运行
-        try:
-            while True:
-                await asyncio.sleep(3600)
-        except asyncio.CancelledError:
-            pass
-        finally:
-            await runner.cleanup()
-            logger.info("🛑 MJPEG server stopped")

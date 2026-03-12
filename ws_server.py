@@ -1,10 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Shiroha WebSocket Server v2 - MJPEG Edition
-功能：
-  - WebSocket: 接收视频帧 + 推送 JSON 状态（控制通道）
-  - HTTP MJPEG: 浏览器 <img> 直接拉取渲染结果（视频通道）
-  - UUID 多租户隔离，Ubuntu 24 headless 兼容
+Shiroha WebSocket Server v2 - Concurrent Edition
 """
 import asyncio
 import websockets
@@ -15,17 +11,16 @@ import signal
 import time
 import cv2
 import numpy as np
+from concurrent.futures import ThreadPoolExecutor
 from server.session import Session
 from server.mjpeg_server import MjpegServer
 from server.config import ServerConfig
 
+# 配置日志
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s [%(levelname)s] %(name)s: %(message)s',
-    handlers=[
-        logging.StreamHandler(sys.stdout),
-        logging.FileHandler('shiroha_ws.log', mode='a', encoding='utf-8')
-    ]
+    handlers=[logging.StreamHandler(sys.stdout)]
 )
 logger = logging.getLogger("ws_server")
 
@@ -36,244 +31,176 @@ class ShirohaServer:
         self.sessions = {}  # uuid -> Session
         self.mjpeg_server = MjpegServer(
             host=self.config.host,
-            port=self.config.get('mjpeg_port', 8766)
+            port=self.config.mjpeg_port
         )
         self._lock = asyncio.Lock()
         self._running = True
 
-        # 信号处理
+        # 🚀 线程池：用于处理 CPU 密集型的分析和渲染
+        # 10人并发建议分配 16-20 个工作线程
+        self.executor = ThreadPoolExecutor(max_workers=20)
+
+        # 注册信号
         signal.signal(signal.SIGINT, self._signal_handler)
         signal.signal(signal.SIGTERM, self._signal_handler)
 
     def _signal_handler(self, sig, frame):
-        logger.info(f"🛑 Received signal {sig}, shutting down...")
+        logger.info(f"🛑 Shutdown signal received ({sig})")
         self._running = False
 
+    # --- 线程池工作任务 ---
+    def _decode_frame(self, frame_bytes):
+        """在线程池中进行图像解码"""
+        return cv2.imdecode(np.frombuffer(frame_bytes, np.uint8), cv2.IMREAD_COLOR)
+
+    def _process_and_render_task(self, session, frame):
+        """在线程池中运行分析流水线并将渲染结果编码为 JPEG"""
+        # 1. 执行算法逻辑
+        result = session.process_frame(frame)
+
+        # 2. 编码渲染帧
+        render_jpegs = {}
+        render_frames = result.get('render_frames', {})
+        for mode, img_array in render_frames.items():
+            if img_array is not None:
+                success, buffer = cv2.imencode('.jpg', img_array, [cv2.IMWRITE_JPEG_QUALITY, 70])
+                if success:
+                    render_jpegs[mode] = buffer.tobytes()
+
+        return result.get('json_data', {}), render_jpegs
+
+    # --- 协程方法 ---
     async def _cleanup_expired_sessions(self):
-        """后台任务：清理超时会话"""
+        """循环清理超时的不活跃会话"""
         while self._running:
             await asyncio.sleep(60)
             async with self._lock:
+                now = time.time()
                 expired = [
-                    uuid for uuid, sess in self.sessions.items()
-                    if sess.is_expired()
+                    u for u, s in self.sessions.items()
+                    if s.is_expired()
                 ]
-                for uuid in expired:
-                    await self._remove_session(uuid)
-                    logger.info(f"🗑️ Cleaned expired session: {uuid}")
+                for u in expired:
+                    await self._remove_session(u)
+                    logger.info(f"🗑️ Session expired: {u}")
 
     async def _remove_session(self, uuid: str):
-        """安全移除会话"""
+        """安全移除会话及其资源"""
         if uuid in self.sessions:
             self.sessions[uuid].cleanup()
             del self.sessions[uuid]
-            # 清理 MJPEG 缓冲区
             await self.mjpeg_server.unregister_buffer(uuid)
 
-    async def _send_to_client(self, websocket, data: dict):
-        """安全发送消息"""
-        try:
-            await websocket.send(json.dumps(data))
-        except websockets.exceptions.ConnectionClosed:
-            raise
-        except Exception as e:
-            logger.warning(f"Send error: {e}")
-
     async def handler(self, websocket, path=None):
-        """WebSocket 连接处理器"""
+        """WebSocket 核心处理器"""
         current_uuid = None
-        session = None
+        loop = asyncio.get_running_loop()
 
         try:
-            logger.info(f"🔗 New connection from {websocket.remote_address}")
-
             async for message in websocket:
-                # === 文本消息：控制命令 ===
+                # 1. 处理文本消息 (控制/注册)
                 if isinstance(message, str):
-                    try:
-                        msg = json.loads(message)
-                        action = msg.get('action')
+                    msg = json.loads(message)
+                    action = msg.get('action')
 
-                        if action == 'register':
-                            # 🔑 从注册消息获取 UUID
-                            current_uuid = msg.get('uuid')
-                            if not current_uuid:
-                                await self._send_to_client(websocket, {
-                                    'type': 'error',
-                                    'message': 'UUID required'
-                                })
-                                continue
+                    if action == 'register':
+                        u = msg.get('uuid')
+                        if not u: continue
 
-                            config = msg.get('config', {})
-
-                            async with self._lock:
-                                if current_uuid in self.sessions:
-                                    logger.warning(f"UUID {current_uuid} already registered")
-                                    await self._send_to_client(websocket, {
-                                        'type': 'error',
-                                        'message': 'UUID already registered'
-                                    })
-                                    continue
-
-                                # 🔑 创建 Session
-                                session = Session(current_uuid, config, self.config)
-                                session.websocket = websocket
-                                self.sessions[current_uuid] = session
-
-                            # 🔑 注册 MJPEG 缓冲区
+                        current_uuid = u.strip()
+                        async with self._lock:
+                            # 注册新 Session
+                            session = Session(current_uuid, msg.get('config', {}), self.config)
+                            session.websocket = websocket
+                            self.sessions[current_uuid] = session
+                            # 注册 MJPEG 缓冲区
                             await self.mjpeg_server.register_buffer(current_uuid)
 
-                            logger.info(f"📋 Registered: {current_uuid}")
-                            await self._send_to_client(websocket, {
-                                'type': 'ack',
-                                'uuid': current_uuid,
-                                'status': 'registered',
-                                'modes': list(session.subscribed_modes)
-                            })
+                        logger.info(f"📋 Client Registered: {current_uuid}")
+                        await websocket.send(json.dumps({'type': 'ack', 'uuid': current_uuid, 'status': 'registered'}))
 
-                        elif action == 'ping':
-                            await self._send_to_client(websocket, {'type': 'pong'})
+                    elif action == 'ping':
+                        await websocket.send(json.dumps({'type': 'pong'}))
 
-                        elif action == 'unsubscribe':
-                            mode = msg.get('mode')
-                            if session and mode in session.subscribed_modes:
-                                session.subscribed_modes.remove(mode)
-                                logger.info(f"🔕 {current_uuid} unsubscribed: {mode}")
-
-                        elif action == 'resubscribe':
-                            mode = msg.get('mode')
-                            if session and mode in self.config.modes:
-                                session.subscribed_modes.add(mode)
-                                logger.info(f"🔔 {current_uuid} resubscribed: {mode}")
-
-                        else:
-                            logger.warning(f"❓ Unknown action: {action}")
-
-                    except json.JSONDecodeError as e:
-                        logger.error(f"❌ JSON decode error: {e}")
-
-                # === 二进制消息：视频帧 ===
+                # 2. 处理二进制消息 (视频流)
                 elif isinstance(message, bytes):
-                    if not current_uuid or current_uuid not in self.sessions:
-                        logger.warning("❌ Frame received before registration")
+                    if not current_uuid or len(message) < 36:
                         continue
 
-                    if len(message) < 36:
-                        logger.warning("❌ Binary message too short")
-                        continue
-
-                    # 🔑 解析：[36 字节 UUID][JPEG 数据]
-                    uuid_bytes = message[:36]
-                    frame_bytes = message[36:]
-
+                    # 🚀 解析 UUID
                     try:
-                        received_uuid = uuid_bytes.decode('ascii', errors='ignore').strip()
-                    except Exception as e:
-                        logger.error(f"❌ UUID decode error: {e}")
+                        received_uuid = message[:36].decode('ascii').strip()
+                        if received_uuid != current_uuid: continue
+                        image_data = message[36:]
+                    except:
                         continue
 
-                    if received_uuid != current_uuid:
-                        logger.warning(f"⚠️ UUID mismatch: {received_uuid} != {current_uuid}")
-                        continue
-
-                    session = self.sessions[current_uuid]
+                    session = self.sessions.get(current_uuid)
+                    if not session: continue
                     session.update_activity()
 
-                    # 🔑 解码帧
+                    # 🚀 丢进线程池：解码 -> 分析 -> 绘图 -> JPEG 编码
                     try:
-                        frame = cv2.imdecode(
-                            np.frombuffer(frame_bytes, np.uint8),
-                            cv2.IMREAD_COLOR
+                        # a. 解码
+                        img = await loop.run_in_executor(self.executor, self._decode_frame, image_data)
+                        if img is None: continue
+
+                        # b. 分析与渲染 (核心计算)
+                        json_res, jpegs = await loop.run_in_executor(
+                            self.executor, self._process_and_render_task, session, img
                         )
-                        if frame is None:
-                            raise ValueError("Decode failed")
+
+                        # c. 推送结果 (并发)
+                        tasks = []
+                        if json_res:
+                            tasks.append(websocket.send(json.dumps({'type': 'update', 'data': json_res})))
+
+                        for mode, jpeg_bytes in jpegs.items():
+                            # MJPEG 推送现在是同步非阻塞的
+                            self.mjpeg_server.push_frame(current_uuid, mode, jpeg_bytes)
+
+                        if tasks:
+                            await asyncio.gather(*tasks)
+
                     except Exception as e:
-                        logger.error(f"❌ Frame decode error: {e}")
-                        continue
+                        logger.error(f"❌ Processing Error ({current_uuid[:8]}): {e}")
 
-                    # 🔑 执行分析流水线
-                    result = session.process_frame(frame)
-
-                    # 🔑 推送渲染帧到 MJPEG 缓冲区（使用 numpy 数组！）
-                    render_frames = result.get('render_frames', {})  # ← 读取 numpy 数组
-                    for mode, render_frame in render_frames.items():
-                        try:
-                            # ✅ 验证 numpy 数组
-                            if render_frame is None or render_frame.size == 0:
-                                continue
-                            if not isinstance(render_frame, np.ndarray):
-                                logger.warning(f"⚠️ Invalid frame type for {mode}: {type(render_frame)}")
-                                continue
-
-                            # ✅ 编码为 JPEG
-                            _, jpeg = cv2.imencode('.jpg', render_frame,
-                                                   [cv2.IMWRITE_JPEG_QUALITY,
-                                                    self.config.get('jpeg_quality', 75)])
-
-                            # ✅ 异步推送到 MJPEG 缓冲区
-                            asyncio.create_task(
-                                self.mjpeg_server.push_frame(
-                                    current_uuid,
-                                    mode,
-                                    jpeg.tobytes()
-                                )
-                            )
-                        except Exception as e:
-                            logger.warning(f"⚠️ MJPEG push error [{mode}]: {e}", exc_info=True)
-
-                    # 🔑 只通过 WebSocket 推送 JSON 状态（不推图像）
-                    if result.get('status') and session.output_json:
-                        await self._send_to_client(websocket, {
-                            'uuid': current_uuid,
-                            'type': 'status',
-                            'data': result['status']
-                        })
-
-                else:
-                    logger.warning(f"❓ Unknown message type: {type(message)}")
-
-        except websockets.exceptions.ConnectionClosed as e:
-            logger.info(f"🔌 Connection closed: {current_uuid} (code={e.code})")
-        except Exception as e:
-            logger.error(f"💥 Handler error:", exc_info=True)
+        except websockets.exceptions.ConnectionClosed:
+            logger.info(f"🔌 Connection closed: {current_uuid}")
         finally:
             if current_uuid:
                 async with self._lock:
                     await self._remove_session(current_uuid)
 
     async def run(self):
-        """启动服务"""
-        logger.info(f"🚀 Starting Shiroha Server at ws://{self.config.host}:{self.config.port}")
-        logger.info(f"📺 MJPEG Server at http://{self.config.host}:{self.mjpeg_server.port}")
-        logger.info(f"   Modes: {self.config.modes}")
-
-        # 启动 MJPEG 服务器（后台任务）
+        """启动主服务循环"""
+        # 启动 MJPEG 服务器任务
         mjpeg_task = asyncio.create_task(self.mjpeg_server.run())
+        # 启动清理任务
         cleanup_task = asyncio.create_task(self._cleanup_expired_sessions())
 
-        try:
-            async with websockets.serve(
-                    self.handler,
-                    self.config.host,
-                    self.config.port,
-                    ping_interval=20,
-                    ping_timeout=10,
-                    max_size=2 ** 24  # 16MB max frame
-            ) as server:
-                logger.info("✅ WebSocket + MJPEG servers RUNNING!")
-                while self._running:
-                    await asyncio.sleep(1)
-        finally:
-            self._running = False
-            mjpeg_task.cancel()
-            cleanup_task.cancel()
-            logger.info("🛑 Server stopped")
+        async with websockets.serve(
+                self.handler,
+                self.config.host,
+                self.config.port,
+                max_size=10 * 1024 * 1024
+        ):
+            logger.info(f"🚀 WS Server: ws://{self.config.host}:{self.config.port}")
+            logger.info(f"📺 MJPEG Server: http://{self.config.host}:{self.config.mjpeg_port}")
 
+            # 持续运行直到信号触发
+            while self._running:
+                await asyncio.sleep(1)
 
-async def main():
-    server = ShirohaServer("./config.json")
-    await server.run()
+        cleanup_task.cancel()
+        mjpeg_task.cancel()
+        self.executor.shutdown(wait=True)
+        logger.info("🛑 Server successfully stopped")
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    server = ShirohaServer(config_path="config.json")
+    try:
+        asyncio.run(server.run())
+    except KeyboardInterrupt:
+        pass
