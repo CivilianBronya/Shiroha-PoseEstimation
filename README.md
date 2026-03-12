@@ -42,18 +42,21 @@
     *   **Windows/Linux:** `pip install dlib`
     *   **macOS:** `brew install dlib` 然后 `pip install dlib` (或者直接 `pip install dlib` 可能也行)。
 
-5.  **安装 MediaPipe:**
+5.  **安装 MediaPipe & OpenCV or other:**
     ```bash
     pip install mediapipe
-    ```
-
-6.  **安装 OpenCV:**
-    ```bash
     pip install opencv-python
+    pip install aiohttp
+    pip install aiortc
     ```
 
-7.  **(可选) 安装其他依赖项:**
+6.  **(可选) 安装其他依赖项:**
     确保 `requirements.txt` 中列出的所有其他包均已通过 `pip` 安装。
+
+
+## 注意
+*(该项目会有更改模块或包的行动，或部分功能重构)*
+
 
 ## 使用方法
 
