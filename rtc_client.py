@@ -3,7 +3,7 @@ import cv2
 import threading
 import time
 import requests
-from flask import Flask, render_template, request, jsonify
+from flask import Flask, request, jsonify
 from flask_cors import CORS
 from server.shm_manager import ShmManager
 
@@ -35,11 +35,6 @@ def camera_worker():
             time.sleep(0.01)  # 约 60-100 FPS
     finally:
         cap.release()
-
-
-@app.route('/')
-def index():
-    return render_template('index.html')
 
 
 # flask_app.py 中的 rtc_negotiate 修改
