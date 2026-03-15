@@ -17,7 +17,7 @@ frame_buffer = shm_node.create()
 
 def camera_worker():
     """持续将摄像头帧写入共享内存"""
-    cap = cv2.VideoCapture(2)
+    cap = cv2.VideoCapture(0)
     cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
     cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
 
