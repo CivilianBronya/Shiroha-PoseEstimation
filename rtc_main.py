@@ -27,7 +27,7 @@ from render.activity_level_renderer import ActivityLevelRenderer
 from analysis.fall_detector import FallDetector
 from rig.face_solver import FaceSolver, MODE_SINGLE, MODE_MULTI
 
-# --- 基础配置 ---
+# 基础配置
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("rtc_main")
 # 9个窗口并行，线程池设为 12 保证调度顺滑
@@ -149,18 +149,21 @@ class VideoProcessorTrack(MediaStreamTrack):
 
             elif self.mode == "type4":  # Intrusion Detection
                 res = body_multi.detect(raw_frame)
-                pts_list = [p['landmark_points'] for p in res.get('people', []) if 'landmark_points' in p]
-                draw_frame = intrusion_render_node.draw(draw_frame, pts_list)
+                if res and 'people' in res:
+                    pts_list = [p['landmark_points'] for p in res['people'] if 'landmark_points' in p]
+                    draw_frame = intrusion_render_node.draw(draw_frame, pts_list)
 
             elif self.mode == "type5":  # Loitering Detection
                 res = body_multi.detect(raw_frame)
-                pts_list = [p['landmark_points'] for p in res.get('people', []) if 'landmark_points' in p]
-                draw_frame = loitering_render_node.draw(draw_frame, pts_list)
+                if res and 'people' in res:
+                    pts_list = [p['landmark_points'] for p in res['people'] if 'landmark_points' in p]
+                    draw_frame = loitering_render_node.draw(draw_frame, pts_list)
 
             elif self.mode == "type6":  # Static Detection
                 res = body_multi.detect(raw_frame)
-                pts_list = [p['landmark_points'] for p in res.get('people', []) if 'landmark_points' in p]
-                draw_frame = static_render_node.draw(draw_frame, pts_list)
+                if res and 'people' in res:
+                    pts_list = [p['landmark_points'] for p in res['people'] if 'landmark_points' in p]
+                    draw_frame = static_render_node.draw(draw_frame, pts_list)
 
             elif self.mode == "type7":  # Vigorous Activity
                 res = body_single.detect(raw_frame)
