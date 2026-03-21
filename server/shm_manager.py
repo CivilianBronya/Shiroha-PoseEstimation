@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import cv2
 import numpy as np
 from multiprocessing import shared_memory
 import platform
@@ -11,6 +12,8 @@ class ShmManager:
         # 🚀 强制转换为原生 int，修复 Windows CreateFileMapping 报错
         self.size = int(np.prod(shape) * np.dtype(np.uint8).itemsize)
         self.shm = None
+        # 🚀 必须在这里显式声明，防止 AttributeError
+        self._buffer = None
 
     def create(self):
         """采集端(Flask)调用：创建共享内存"""
@@ -40,6 +43,28 @@ class ShmManager:
         except FileNotFoundError:
             # 向上抛出异常，由逻辑层决定是否重试
             raise FileNotFoundError(f"未找到共享内存 '{self.name}'。请先启动 Flask 程序。")
+
+    def write(self, frame):
+        """将图像帧写入共享内存"""
+        # 🚀 健壮性检查：如果执行 write 时还没有 buffer，尝试自动关联
+        if self._buffer is None:
+            if self.shm is not None:
+                # 如果 shm 对象存在但没有 ndarray，重新包装
+                self._buffer = np.ndarray(self.shape, dtype=np.uint8, buffer=self.shm.buf)
+            else:
+                # 这种情况通常说明没调用 create()，直接忽略这次写入，防止崩溃
+                return
+
+        if frame is not None:
+            try:
+                # 确保尺寸一致
+                if frame.shape[0] != self.shape[0] or frame.shape[1] != self.shape[1]:
+                    frame = cv2.resize(frame, (self.shape[1], self.shape[0]))
+
+                # 真正的写入操作
+                self._buffer[:] = frame[:]
+            except Exception as e:
+                print(f"❌ SHM 写入运行时出错: {e}")
 
     def close(self):
         if self.shm:
