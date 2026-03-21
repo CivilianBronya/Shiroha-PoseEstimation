@@ -64,6 +64,9 @@
 
 ```bash
 python main.py
+or
+python rtc_client.py
+python rtc_main.py
 ```
    **按 ESC 键退出应用程序。**
 
