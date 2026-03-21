@@ -84,10 +84,10 @@ face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_fronta
 class VideoProcessorTrack(MediaStreamTrack):
     kind = "video"
 
-    def __init__(self, mode="type1"):
+    def __init__(self, mode="type1", shm_name="shiroha_frame"):
         super().__init__()
         self.mode = mode
-        self.shm_manager = ShmManager(name="shiroha_frame")
+        self.shm_manager = ShmManager(name=shm_name)
         self.frame_buffer = None
         self._timestamp = 0
         self._fps = 15  # 降低单路帧率以换取 9 窗口稳定性
@@ -202,7 +202,7 @@ async def offer(request):
             await pc.close()
             pcs.discard(pc)
 
-    track = VideoProcessorTrack(mode=params.get("mode", "type1"))
+    track = VideoProcessorTrack(mode=params.get("mode", "type1"), shm_name=params.get("shm_name", "shiroha_frame"))
     pc.addTrack(track)
     await pc.setRemoteDescription(offer_obj)
     answer = await pc.createAnswer()
