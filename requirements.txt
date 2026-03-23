@@ -1,21 +1,10 @@
-# Core Computer Vision
-opencv-python>=4.5.0
-
-# Pose & Face Landmark Estimation
-mediapipe>=0.10.0
-
-# Additional utilities (if used in your code)
-numpy>=1.20.0
-scipy>=1.7.0 # May be needed for math functions if numpy isn't sufficient
-
-# DLib (Installation might be platform-specific and handled separately)
-# dlib>=19.24.0 # Uncomment if pip install dlib is the recommended method for your setup
-
-# 请注意：
-# 版本号：>= 后面的版本号是建议的最低版本。您可以根据实际开发环境中使用的版本进行更新，或者使用 == 来固定版本号（例如 opencv-python==4.8.1.78）。固定版本有助于保证在不同机器上环境的一致性。
-# DLib：如前所述，DLib 的安装有时比较特殊，可能需要预先安装 CMake、Boost 等工具，或者在某些平台（如 Windows）上通过预编译的 .whl 文件安装。因此，将 dlib 直接放在 requirements.txt 中可能不会总是成功。您可以根据实际情况决定是否将其注释掉，并在 README 中单独说明安装方法，或者如果 pip install dlib 对您来说可行，就取消注释。
-# 其他依赖：如果您在代码中还使用了其他库（例如 matplotlib 用于绘图，pandas 用于数据处理等），请将它们添加到这个文件中。
-# 生成现有环境的 requirements.txt：如果您希望导出当前 Conda 环境中已安装的包列表，可以激活环境后运行：
-
-# pip list --format=freeze > requirements.txt
-# 这会生成一个包含精确版本号的列表，您可以根据需要编辑它。
+aiohttp>=3.9.5
+aiortc==1.14.0
+av>=17.0.0
+dlib==20.0.0
+Flask==3.1.3
+flask_cors>=6.0.1
+mediapipe==0.10.32
+numpy<=2.4.3
+opencv-contrib-python-headless>=4.12.0.88
+Requests==2.32.5
