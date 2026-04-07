@@ -1,44 +1,49 @@
+# -*- coding: utf-8 -*-
 import cv2
-import numpy as np
+
 
 class FaceRecognitionRenderer:
-    """
-    人脸识别渲染器。
-    此类接收一个 FaceSolver 实例，并从中获取处理后的人脸数据，
-    在帧上绘制人脸框。
-    """
-
-    def __init__(self, face_solver_instance):
-        self.face_solver = face_solver_instance
-        self.color = (0, 255, 0)
+    def __init__(self, face_solver_instance=None):
         self.thickness = 2
+        self.font = cv2.FONT_HERSHEY_SIMPLEX
+        self.font_scale = 0.6
+        self.font_thickness = 2
 
-    def draw(self, frame, faces_data):
-        """
-        在帧上绘制人脸框。
-
-        Args:
-            frame: 输入图像帧。
-            faces_data: 人脸检测组件返回的原始人脸数据。
-                       例如: [[x, y, w, h], ...]
-
-        Returns:
-            True or False
-        """
-        if frame is None:
+    def draw(self, frame, processed_faces):
+        if frame is None or not processed_faces:
             return frame
 
-        output_frame = frame.copy()
-
-        # 将原始数据传递给人脸求解器进行处理
-        processed_faces = self.face_solver.solve(faces_data)
-
-        # 从求解器获取平滑后的人脸位置并绘制
         for face_info in processed_faces.values():
-            bbox = face_info['bbox']
-            top_left = (int(bbox[0]), int(bbox[1]))
-            bottom_right = (int(bbox[0] + bbox[2]), int(bbox[3] + bbox[1]))
+            bbox = face_info.get('bbox')
+            if not bbox:
+                continue
 
-            cv2.rectangle(output_frame, top_left, bottom_right, self.color, self.thickness)
+            x, y, w, h = map(int, bbox)
+            top_left = (x, y)
+            bottom_right = (x + w, y + h)
 
-        return output_frame
+            # 逻辑判断
+            name = face_info.get('name', 'Unknown')
+            distance = face_info.get('distance', 1.0)  # 如果数据里没有 distance，默认是陌生人
+
+            if name == "Unknown":
+                color = (0, 0, 255)  # 红色：陌生人 (未录入/识别失败)
+                label_text = "STRANGER"
+            elif distance < 0.4:
+                color = (0, 255, 0)  # 绿色：已录入且高匹配 (通过)
+                label_text = f"{name} "
+            else:
+                color = (0, 255, 255)  # 黄色：已录入但模糊 (需注意)
+                label_text = f"{name}?"
+
+            # 绘图
+            cv2.rectangle(frame, top_left, bottom_right, color, self.thickness)
+
+            # 绘制文字背景和文字
+            (text_width, text_height), _ = cv2.getTextSize(label_text, self.font, self.font_scale, self.font_thickness)
+            label_y = max(y, text_height + 10)
+            cv2.rectangle(frame, (x, label_y - text_height - 10), (x + text_width + 10, label_y), color, -1)
+            cv2.putText(frame, label_text, (x + 5, label_y - 5), self.font, self.font_scale, (0, 0, 0),
+                        self.font_thickness)
+
+        return frame

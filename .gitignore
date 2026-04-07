@@ -154,6 +154,7 @@ ENV/
 # Your specific project files that shouldn't be uploaded
 # For example, if you generate any output files in a specific folder:
 data/output/
+analysis/known_faces/*
 results/
 # Or any personal notes or temporary scripts:
 *.tmp.py

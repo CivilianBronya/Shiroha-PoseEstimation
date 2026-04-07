@@ -10,7 +10,6 @@ from aiortc import MediaStreamTrack, RTCPeerConnection, RTCSessionDescription
 from av import VideoFrame
 from concurrent.futures import ThreadPoolExecutor
 
-# --- 导入你的业务组件 ---
 from server.shm_manager import ShmManager
 from pose.body_pose import BodyPose
 from face.head_pose import HeadPose
@@ -25,6 +24,7 @@ from render.static_detection_renderer import StaticDetectionRenderer
 from render.vigorous_activity_renderer import VigorousActivityRenderer
 from render.activity_level_renderer import ActivityLevelRenderer
 from analysis.fall_detector import FallDetector
+from analysis.face_recognition_analyzer import FaceRecognitionAnalyzer
 from rig.face_solver import FaceSolver, MODE_SINGLE, MODE_MULTI
 
 # 基础配置
@@ -37,7 +37,7 @@ executor = ThreadPoolExecutor(max_workers=12)
 with open("config.json", "r", encoding="utf-8") as f:
     config = json.load(f)
 
-# --- 1. 全局初始化组件 (单例模式) ---
+# 全局初始化组件 (单例模式)
 logger.info("正在初始化 AI 模型组件...")
 
 body_single = BodyPose(num_poses=config["pose"]["single"]["num_poses"])
@@ -69,8 +69,6 @@ activity_render_node = ActivityLevelRenderer(
     high_threshold=config["detection"]["activity_level"]["high_threshold"]
 )
 
-# 🚀 修复核心：FaceSolver 参数冲突修复
-# 先解包配置，再覆盖 mode 参数
 face_cfg = config["face"].copy()
 face_cfg.pop("mode", None)  # 移除配置中的 mode 防止冲突
 
@@ -79,7 +77,8 @@ face_render_multi = FaceRecognitionRenderer(face_solver_m)
 
 # 人脸检测器 (OpenCV Cascade)
 face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
-
+face_analyzer = FaceRecognitionAnalyzer()
+face_render_multi = FaceRecognitionRenderer(face_solver_instance=None)
 
 class VideoProcessorTrack(MediaStreamTrack):
     kind = "video"
@@ -90,8 +89,8 @@ class VideoProcessorTrack(MediaStreamTrack):
         self.shm_manager = ShmManager(name=shm_name)
         self.frame_buffer = None
         self._timestamp = 0
-        self._fps = 15  # 降低单路帧率以换取 9 窗口稳定性
-        self._clock_rate = 90000
+        self._fps = 60
+        self._clock_rate = 540000
 
         try:
             self.frame_buffer = self.shm_manager.attach()
@@ -120,13 +119,13 @@ class VideoProcessorTrack(MediaStreamTrack):
         if self.frame_buffer is None:
             return np.zeros((360, 480, 3), dtype=np.uint8)
 
-        # 1. 拷贝原始帧
+        # 拷贝原始帧
         raw_frame = self.frame_buffer.copy()
-        # 2. 预准备渲染画布
+        # 预准备渲染画布
         draw_frame = raw_frame.copy()
 
         try:
-            # 3. 按模式分发算法
+            # 按模式分发算法
             if self.mode == "type1":  # Fall Detector
                 res = body_single.detect(raw_frame)
                 if res and 'landmark_points' in res:
@@ -142,10 +141,8 @@ class VideoProcessorTrack(MediaStreamTrack):
                     draw_frame = pose_multi_render_node.draw(draw_frame, pts_list)
 
             elif self.mode == "type3":  # Face Recognition
-                gray = cv2.cvtColor(raw_frame, cv2.COLOR_BGR2GRAY)
-                faces = face_cascade.detectMultiScale(gray, 1.1, 5, minSize=(30, 30))
-                faces_fmt = [[int(x), int(y), int(w), int(h)] for (x, y, w, h) in faces]
-                draw_frame = face_render_multi.draw(draw_frame, faces_fmt)
+                faces_data = face_analyzer.solve(raw_frame)
+                draw_frame = face_render_multi.draw(draw_frame, faces_data)
 
             elif self.mode == "type4":  # Intrusion Detection
                 res = body_multi.detect(raw_frame)
@@ -182,11 +179,11 @@ class VideoProcessorTrack(MediaStreamTrack):
         except Exception as e:
             logger.error(f"Mode {self.mode} 运行报错: {e}")
 
-        # 4. 统一窗口分辨率，降低前端 9 屏渲染压力
+        # 统一窗口分辨率，降低前端 9 屏渲染压力
         return cv2.resize(draw_frame, (640, 480))
 
 
-# --- 信令服务器 (Signaling) ---
+# 信令服务器 (Signaling)
 pcs = set()
 
 
@@ -214,5 +211,5 @@ async def offer(request):
 if __name__ == "__main__":
     app = web.Application()
     app.router.add_post("/offer", offer)
-    logger.info("🚀 WebRTC Server 矩阵中心已启动 @ 8888")
+    logger.info("GO GO GO!  WebRTC Server 矩阵中心已启动 @ 8888")
     web.run_app(app, port=8888)

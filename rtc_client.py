@@ -10,7 +10,7 @@ from server.shm_manager import ShmManager
 app = Flask(__name__)
 CORS(app)
 
-# --- 初始化共享内存 ---
+# 初始化共享内存
 shm_node = ShmManager(name="shiroha_frame", shape=(480, 640, 3))
 frame_buffer = shm_node.create()
 
@@ -22,7 +22,7 @@ def camera_worker():
     cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
     cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
 
-    print("📹 摄像头采集已就绪...")
+    print("摄像头采集已就绪...")
     try:
         while True:
             ret, frame = cap.read()
@@ -42,8 +42,8 @@ def camera_worker():
 @app.route('/rtc_negotiate', methods=['POST'])
 def rtc_negotiate():
     try:
-        # 1. 增加超时时间到 15 秒
-        # 2. 确保使用的是 127.0.0.1 避免某些系统下 localhost 解析慢
+        # 增加超时时间到 15 秒
+        # 确保使用的是 127.0.0.1 避免某些系统下 localhost 解析慢
         response = requests.post(
             "http://127.0.0.1:8888/offer",
             json=request.json,

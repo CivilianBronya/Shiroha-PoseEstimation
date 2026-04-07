@@ -33,6 +33,61 @@
 
         button { background: var(--accent); color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; }
         button:hover { opacity: 0.9; }
+
+        /* 开关面板容器 */
+        .switch-panel {
+            display: flex;
+            align-items: center;
+            background: #0f172a; /* 与背景同色，融入 */
+            padding: 5px 10px;
+            border-radius: 6px;
+            border: 1px solid #334155;
+            margin-left: 20px; /* 与前面的按钮拉开距离 */
+        }
+
+        .panel-label {
+            font-size: 12px;
+            color: #94a3b8;
+            margin-right: 10px;
+            font-weight: bold;
+        }
+
+        /* 开关网格 (3列) */
+        .switch-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 4px; /* 开关之间的间距 */
+        }
+
+        /* 单个开关样式 */
+        .stream-toggle {
+            background: #334155; /* 默认灰色（关） */
+            border: none;
+            color: #94a3b8;
+            width: 28px;
+            height: 20px;
+            font-size: 10px;
+            border-radius: 3px;
+            cursor: pointer;
+            padding: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+            opacity: 0.6;
+        }
+
+        /* 开启状态样式 */
+        .stream-toggle.active {
+            background: #3b82f6; /* 蓝色（开） */
+            color: white;
+            opacity: 1;
+            box-shadow: 0 0 5px rgba(59, 130, 246, 0.5);
+        }
+
+        .stream-toggle:hover {
+            opacity: 0.8;
+        }
     </style>
 </head>
 <body>
@@ -43,6 +98,9 @@
         <label>信令地址:</label>
         <input type="text" id="api-url" value="http://127.0.0.1:5000/rtc_negotiate">
         <button onclick="startAll()">初始化所有终端</button>
+        <div class="switch-panel" id="switchPanel">
+            <span class="panel-label">通道开关:</span>
+        </div>
     </div>
 </div>
 
@@ -52,56 +110,151 @@
 <script>
     const grid = document.getElementById('grid');
     const apiInput = document.getElementById('api-url');
-    const pcs = [];
+    const pcs = {};
+
+    const typeMapping = {
+        "type1": "摔倒检测",
+        "type2": "姿态检测",
+        "type3": "人脸识别",
+        "type4": "入侵检测",
+        "type5": "徘徊监测",
+        "type6": "静态检测",
+        "type7": "剧烈活动",
+        "type8": "运动检测",
+        "type9": "环境监测"
+    };
+
+    // 将 9 个窗口全部默认打开
+    let channelStatus = {
+        1: true, 2: true, 3: true,
+        4: true, 5: true, 6: true,
+        7: true, 8: true, 9: true
+    };
 
     // 初始化生成 9 个播放卡片
     for (let i = 1; i <= 9; i++) {
         const div = document.createElement('div');
         div.className = 'video-card';
         div.innerHTML = `
-            <div class="label">Renderer Type ${i}</div>
+            <div class="label">${typeMapping[`type${i}`]}</div>
             <video id="v-${i}" autoplay playsinline muted></video>
         `;
         grid.appendChild(div);
     }
 
+    // 开关按钮
+    function initSwitches() {
+        const panel = document.querySelector('.switch-panel');
+        const gridDiv = document.createElement('div');
+        gridDiv.className = 'switch-grid';
+
+        for (let i = 1; i <= 9; i++) {
+            const btn = document.createElement('button');
+            btn.className = 'stream-toggle active'; // 默认active
+            btn.innerText = i;
+            btn.onclick = () => toggleChannel(i, btn);
+            gridDiv.appendChild(btn);
+        }
+        panel.appendChild(gridDiv);
+    }
+
+    // 画面开关切换逻辑
+    function toggleChannel(id, btnElement) {
+        channelStatus[id] = !channelStatus[id];
+
+        // 视觉反馈
+        if (channelStatus[id]) {
+            btnElement.classList.add('active');
+            startOne(id, `type${id}`);
+        } else {
+            btnElement.classList.remove('active');
+            stopOne(id);
+        }
+    }
+
     async function startOne(id, mode) {
+        if (!channelStatus[id]) return;
+
+        // 如果已有连接，先关闭旧的
+        if (pcs[id]) {
+            pcs[id].close();
+        }
+
         const video = document.getElementById(`v-${id}`);
         const pc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
-        pcs.push(pc);
+
+        // 存入字典，方便后续关闭
+        pcs[id] = pc;
 
         pc.ontrack = (e) => { video.srcObject = e.streams[0]; };
         pc.addTransceiver('video', { direction: 'recvonly' });
 
-        const offer = await pc.createOffer();
-        await pc.setLocalDescription(offer);
+        try {
+            const offer = await pc.createOffer();
+            await pc.setLocalDescription(offer);
 
-        // 等待 ICE
-        await new Promise(r => {
-            if(pc.iceGatheringState==='complete') r();
-            else pc.onicegatheringstatechange = () => pc.iceGatheringState==='complete' && r();
-        });
+            // 等待 ICE
+            await new Promise(r => {
+                if(pc.iceGatheringState==='complete') r();
+                else pc.onicegatheringstatechange = () => pc.iceGatheringState==='complete' && r();
+            });
 
-        const res = await fetch(apiInput.value, {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ sdp: pc.localDescription.sdp, type: pc.localDescription.type, mode: mode })
-        });
+            const res = await fetch(apiInput.value, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    sdp: pc.localDescription.sdp,
+                    type: pc.localDescription.type,
+                    mode: mode
+                })
+            });
 
-        const answer = await res.json();
-        await pc.setRemoteDescription(new RTCSessionDescription(answer));
+            const answer = await res.json();
+            await pc.setRemoteDescription(new RTCSessionDescription(answer));
+        } catch (e) {
+            console.error(`通道 ${id} 连接失败`, e);
+            delete pcs[id];
+        }
+    }
+        // 停止单路连接
+        function stopOne(id) {
+        if (pcs[id]) {
+            pcs[id].close();
+            delete pcs[id];
+        }
+        // 清空画面
+        const video = document.getElementById(`v-${id}`);
+        video.srcObject = null;
     }
 
     function startAll() {
         // 清理旧连接
-        pcs.forEach(p => p.close());
-        pcs.length = 0;
+        for (let id in pcs) {
+            if (pcs[id]) {
+                pcs[id].close();
+            }
+        }
+        // 重置对象
+        Object.keys(pcs).forEach(key => delete pcs[key]);
 
         // 依次启动 9 路流
         for (let i = 1; i <= 9; i++) {
-            startOne(i, `type${i}`);
+            if (channelStatus[i]) {
+                startOne(i, `type${i}`);
+            } else {
+                stopOne(i);
+            }
         }
     }
+
+    initSwitches();
+    window.onload = () => {
+        for (let i = 1; i <= 9; i++) {
+            if (channelStatus[i]) {
+                startOne(i, `type${i}`);
+            }
+        }
+    };
 </script>
 </body>
 </html>
